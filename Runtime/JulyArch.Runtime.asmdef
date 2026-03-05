@@ -1,0 +1,17 @@
+{
+    "name": "JulyArch.Runtime",
+    "rootNamespace": "JulyArch",
+    "references": [
+        "GUID:862ecc02eddb84cf5b33c3566dbd6c68",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
