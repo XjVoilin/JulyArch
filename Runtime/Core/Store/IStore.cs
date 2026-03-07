@@ -8,16 +8,24 @@ namespace JulyArch
     /// </summary>
     public interface IStore
     {
-        /// <summary>初始化（由 GameContext 调用，注入上下文引用）</summary>
+        /// <summary>
+        /// 初始化
+        /// </summary>
         void Initialize(GameContext context);
 
-        /// <summary>加载存档数据</summary>
+        /// <summary>
+        /// 加载存档数据
+        /// </summary>
         UniTask LoadAsync();
 
-        /// <summary>所有 Store 数据加载完成后的回调（可安全访问其他 Store）</summary>
+        /// <summary>
+        /// 所有 Store 数据加载完成后的回调
+        /// </summary>
         void OnReady();
 
-        /// <summary>关闭（应用退出时）</summary>
+        /// <summary>
+        /// 关闭
+        /// </summary>
         void Shutdown();
     }
 

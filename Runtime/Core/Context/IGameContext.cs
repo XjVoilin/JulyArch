@@ -4,11 +4,6 @@ namespace JulyArch
 {
     /// <summary>
     /// 游戏上下文接口
-    /// 
-    /// 【API 使用指引】
-    /// Query&lt;T&gt;()     — 获取 Store 只读查询接口（推荐路径，UI/System 日常使用）
-    /// GetSystem&lt;T&gt;()  — 获取 System 实例
-    /// Execute&lt;T&gt;()    — 执行 Command（跨 Store 业务操作的标准入口）
     /// </summary>
     public interface IGameContext
     {
@@ -29,8 +24,7 @@ namespace JulyArch
     }
 
     /// <summary>
-    /// 命令执行上下文 — 继承 IGameContext，额外提供 Store 写权限
-    /// 仅由 Command 的 Execute 方法接收
+    /// Command专用,提供Store的Get,使其能操作数据,具备数据的完整权限
     /// </summary>
     public interface ICommandContext : IGameContext
     {

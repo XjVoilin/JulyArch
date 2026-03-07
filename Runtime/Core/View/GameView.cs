@@ -7,10 +7,6 @@ namespace JulyArch
     /// <summary>
     /// 场景级 View 基类
     /// 所有需要接入架构的场景 MonoBehaviour（场景表现、场景初始化等）应继承此类
-    ///
-    /// 提供：
-    ///   · Context 引用 + Query / GetSystem / Execute 快捷方法（与 GameSystemBase 对称）
-    ///   · OnViewEnable / OnViewDisable 生命周期钩子（绑定在 OnEnable / OnDisable）
     /// </summary>
     public abstract class GameView : MonoBehaviour
     {

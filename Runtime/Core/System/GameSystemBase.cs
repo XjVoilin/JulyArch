@@ -1,14 +1,18 @@
-﻿using System.Threading;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 
 namespace JulyArch
 {
     public abstract class GameSystemBase : IGameSystem
     {
-        /// <summary>GameContext 提供的上下文接口</summary>
+        /// <summary>
+        /// GameContext 提供的上下文接口
+        /// </summary>
         protected IGameContext Context { get; private set; }
 
-        /// <summary>系统名称，默认为类名</summary>
+        /// <summary>
+        /// System名称，默认为类名
+        /// </summary>
         public virtual string Name => GetType().Name;
 
         public async UniTask OnInit(IGameContext context, CancellationToken ct)
@@ -27,13 +31,18 @@ namespace JulyArch
 
         public virtual void Dispose() { }
 
-        /// <summary>异步初始化（子类覆盖，Context 已注入）</summary>
+        /// <summary>
+        /// 异步初始化
+        /// </summary>
         protected virtual UniTask OnInitialize(CancellationToken ct) => UniTask.CompletedTask;
 
         #region 快捷方法
 
         protected T Query<T>() where T : class, IStoreQueries
             => Context.Query<T>();
+
+        protected T GetStore<T>() where T : class, IStore
+            => (Context as ICommandContext)?.GetStore<T>();
 
         protected UniTask<CommandResult> Execute<TCommand>(TCommand command) where TCommand : ICommand
             => Context.Execute(command);

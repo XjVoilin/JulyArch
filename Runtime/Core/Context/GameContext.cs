@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
@@ -6,12 +6,6 @@ using JulyCore;
 
 namespace JulyArch
 {
-    public enum GameContextState
-    {
-        NotInitialized,
-        Ready,
-    }
-
     /// <summary>
     /// 游戏上下文 — 上层架构的统一协调中心
     /// 管理 Store 注册与生命周期、System 注册与帧驱动、Command 分派
@@ -37,7 +31,7 @@ namespace JulyArch
             if (_instance != null)
             {
                 GF.LogWarning("[GameContext] 实例已存在，先销毁旧实例");
-                _instance.ShutdownCore(async: false);
+                _instance.Shutdown();
             }
 
             _instance = new GameContext();
@@ -46,11 +40,8 @@ namespace JulyArch
 
         internal static void Destroy()
         {
-            if (_instance != null)
-            {
-                _instance.ShutdownCore(async: false);
-                _instance = null;
-            }
+            _instance?.Shutdown();
+            _instance = null;
         }
 
         #endregion
@@ -62,24 +53,17 @@ namespace JulyArch
         private readonly List<IGameSystem> _systems = new();
         private readonly Dictionary<Type, IGameSystem> _systemLookup = new();
 
-        private GameContextState _state = GameContextState.NotInitialized;
-
-        private GameContext() { }
-
-        // ================================================================
-        // 注册
-        // ================================================================
+        private bool _initialized;
 
         public void RegisterStore(IStore store)
         {
-            if (_state != GameContextState.NotInitialized)
+            if (_initialized)
             {
                 GF.LogError($"[GameContext] 初始化后不允许注册 Store: {store?.GetType().Name}");
                 return;
             }
 
-            if (store == null)
-                throw new ArgumentNullException(nameof(store));
+            if (store == null) throw new ArgumentNullException(nameof(store));
 
             var type = store.GetType();
             if (!_stores.TryAdd(type, store))
@@ -99,57 +83,49 @@ namespace JulyArch
 
         public void RegisterSystem(IGameSystem system)
         {
-            if (_state != GameContextState.NotInitialized)
+            if (_initialized)
             {
                 GF.LogError($"[GameContext] 初始化后不允许注册 System: {system?.GetType().Name}");
                 return;
             }
 
-            if (system == null)
-                throw new ArgumentNullException(nameof(system));
+            if (system == null) throw new ArgumentNullException(nameof(system));
 
             var type = system.GetType();
-            if (_systemLookup.ContainsKey(type))
+            if (!_systemLookup.TryAdd(type, system))
             {
                 GF.LogWarning($"[GameContext] System {type.Name} 已注册，跳过");
                 return;
             }
 
             _systems.Add(system);
-            _systemLookup[type] = system;
 
             foreach (var iface in type.GetInterfaces())
             {
                 if (iface != typeof(IGameSystem) && iface != typeof(IDisposable)
-                                                 && typeof(IGameSystem).IsAssignableFrom(iface))
+                    && typeof(IGameSystem).IsAssignableFrom(iface))
                     _systemLookup.TryAdd(iface, system);
             }
         }
 
-        // ================================================================
-        // 生命周期
-        // ================================================================
-
         /// <summary>
-        /// 初始化：Store.Initialize → Store.LoadAsync → Store.OnReady → System.OnInit → System.OnStart → GameReadyEvent
+        /// 初始化：Store.Initialize → LoadAsync → OnReady → System.OnInit → OnStart → GameReadyEvent
+        /// 任何步骤失败都会中断初始化并向上抛出异常
         /// </summary>
-        public async UniTask InitializeAsync(CancellationToken externalCt = default)
+        public async UniTask InitializeAsync(CancellationToken ct = default)
         {
-            if (_state != GameContextState.NotInitialized)
+            if (_initialized)
             {
                 GF.LogWarning("[GameContext] 已经初始化，跳过");
                 return;
             }
-
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
-            var ct = cts.Token;
 
             GF.Log("[GameContext] 开始初始化...");
 
             foreach (var store in _storeList)
             {
                 ct.ThrowIfCancellationRequested();
-                SafeInvoke(store, "Initialize", () => store.Initialize(this));
+                store.Initialize(this);
             }
 
             foreach (var store in _storeList)
@@ -159,9 +135,7 @@ namespace JulyArch
             }
 
             foreach (var store in _storeList)
-            {
-                SafeInvoke(store, "OnReady", () => store.OnReady());
-            }
+                store.OnReady();
 
             foreach (var system in _systems)
             {
@@ -170,21 +144,18 @@ namespace JulyArch
             }
 
             foreach (var system in _systems)
-            {
-                try { system.OnStart(); }
-                catch (Exception ex) { GF.LogError($"[GameContext] {system.Name}.OnStart failed: {ex.Message}"); }
-            }
+                system.OnStart();
 
-            _state = GameContextState.Ready;
+            _initialized = true;
             GF.Log($"[GameContext] 初始化完成 (Stores={_stores.Count}, Systems={_systems.Count})");
             GF.Event.Publish(new GameReadyEvent());
         }
 
         public void Update(float deltaTime)
         {
-            if (_state != GameContextState.Ready) return;
+            if (!_initialized) return;
 
-            for (int i = 0; i < _systems.Count; i++)
+            for (var i = 0; i < _systems.Count; i++)
             {
                 try { _systems[i].OnUpdate(deltaTime); }
                 catch (Exception ex) { GF.LogError($"[GameContext] {_systems[i].Name}.OnUpdate 异常: {ex.Message}"); }
@@ -193,7 +164,7 @@ namespace JulyArch
 
         public void LateUpdate(float deltaTime)
         {
-            if (_state != GameContextState.Ready) return;
+            if (!_initialized) return;
 
             for (int i = 0; i < _systems.Count; i++)
             {
@@ -202,22 +173,28 @@ namespace JulyArch
             }
         }
 
-        /// <summary>异步关闭（能 await 的场景使用）</summary>
         public async UniTask ShutdownAsync()
         {
-            await ShutdownCore(async: true);
+            if (!_initialized) return;
+            GF.Log("[GameContext] 开始关闭...");
+
+            for (var i = _systems.Count - 1; i >= 0; i--)
+            {
+                try { await _systems[i].OnShutdown(); }
+                catch (Exception ex) { GF.LogError($"[GameContext] {_systems[i].Name}.OnShutdown: {ex.Message}"); }
+            }
+
+            ShutdownDispose();
         }
 
-        // ================================================================
-        // ICommandContext / IGameContext
-        // ================================================================
+        #region ICommandContext / IGameContext
 
         public T Query<T>() where T : class, IStoreQueries
         {
             if (_storeQueryRegistry.TryGetValue(typeof(T), out var store))
                 return store as T;
 
-            GF.LogError($"[GameContext] Store query interface {typeof(T).Name} 未注册");
+            GF.LogError($"[GameContext] Query<{typeof(T).Name}> 未注册");
             return null;
         }
 
@@ -226,7 +203,7 @@ namespace JulyArch
             if (_stores.TryGetValue(typeof(T), out var store))
                 return (T)store;
 
-            GF.LogError($"[GameContext] Store {typeof(T).Name} 未注册");
+            GF.LogError($"[GameContext] GetStore<{typeof(T).Name}> 未注册");
             return null;
         }
 
@@ -235,12 +212,11 @@ namespace JulyArch
             if (_systemLookup.TryGetValue(typeof(T), out var system))
                 return (T)system;
 
-            GF.LogError($"[GameContext] System {typeof(T).Name} 未注册");
+            GF.LogError($"[GameContext] GetSystem<{typeof(T).Name}> 未注册");
             return null;
         }
 
-        public async UniTask<CommandResult> Execute<TCommand>(TCommand command)
-            where TCommand : ICommand
+        public async UniTask<CommandResult> Execute<TCommand>(TCommand command) where TCommand : ICommand
         {
             try
             {
@@ -253,43 +229,40 @@ namespace JulyArch
             }
         }
 
-        // ================================================================
-        // 内部
-        // ================================================================
+        #endregion
 
         /// <summary>
-        /// 统一关闭逻辑。async=true 时 await System.OnShutdown，async=false 时 fire-and-forget
+        /// 同步关闭（用于 Create 重建和 Destroy 退出场景，System 的异步关闭会被 Forget）
         /// </summary>
-        private async UniTask ShutdownCore(bool async)
+        private void Shutdown()
         {
-            if (_state == GameContextState.NotInitialized) return;
-
+            if (!_initialized) return;
             GF.Log("[GameContext] 开始关闭...");
 
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
-                try
-                {
-                    if (async)
-                        await _systems[i].OnShutdown();
-                    else
-                        _systems[i].OnShutdown().Forget();
-                }
-                catch (Exception ex)
-                {
-                    GF.LogError($"[GameContext] {_systems[i].Name}.OnShutdown failed: {ex.Message}");
-                }
+                try { _systems[i].OnShutdown().Forget(); }
+                catch (Exception ex) { GF.LogError($"[GameContext] {_systems[i].Name}.OnShutdown: {ex.Message}"); }
             }
 
+            ShutdownDispose();
+        }
+
+        /// <summary>
+        /// Shutdown/ShutdownAsync 共享的后半段：Dispose System → Shutdown Store → 清理
+        /// </summary>
+        private void ShutdownDispose()
+        {
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
                 try { _systems[i].Dispose(); }
-                catch (Exception ex) { GF.LogError($"[GameContext] {_systems[i].Name}.Dispose failed: {ex.Message}"); }
+                catch (Exception ex) { GF.LogError($"[GameContext] {_systems[i].Name}.Dispose: {ex.Message}"); }
             }
 
             for (var i = _storeList.Count - 1; i >= 0; i--)
             {
-                SafeInvoke(_storeList[i], "Shutdown", () => _storeList[i].Shutdown());
+                try { _storeList[i].Shutdown(); }
+                catch (Exception ex) { GF.LogError($"[GameContext] Store.Shutdown: {ex.Message}"); }
             }
 
             _stores.Clear();
@@ -297,15 +270,9 @@ namespace JulyArch
             _storeQueryRegistry.Clear();
             _systems.Clear();
             _systemLookup.Clear();
-            _state = GameContextState.NotInitialized;
+            _initialized = false;
 
             GF.Log("[GameContext] 已关闭");
-        }
-
-        private void SafeInvoke(IStore store, string operation, Action action)
-        {
-            try { action(); }
-            catch (Exception ex) { GF.LogError($"[GameContext] {store.GetType().Name}.{operation} failed: {ex.Message}"); }
         }
     }
 }

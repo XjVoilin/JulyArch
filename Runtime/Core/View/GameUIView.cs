@@ -6,15 +6,7 @@ namespace JulyArch
 {
     /// <summary>
     /// UI 面板 View 基类
-    /// 所有需要接入架构的 UI 面板应继承此类（替代直接继承 UIBase）
-    ///
-    /// 提供：
-    ///   · Context 引用 + Query / GetSystem / Execute 快捷方法（与 GameSystemBase 对称）
-    ///   · ExecuteCommand：UI 专用的命令执行，失败时自动弹出错误提示
-    ///
-    /// 生命周期由 JulyGF UI 系统驱动：
-    ///   OnBeforeOpen → OnOpen → OnClose → OnAfterClose
-    ///   OnClose 时 UIBase 自动调用 GF.Event.UnsubscribeAll(this)
+    /// 所有需要接入架构的 UI 面板应继承此类
     /// </summary>
     public abstract class GameUIView : UIBase
     {

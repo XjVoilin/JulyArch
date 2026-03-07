@@ -5,9 +5,7 @@ using UnityEngine;
 namespace JulyArch
 {
     /// <summary>
-    /// - 这个类属于 Composition Root（启动胶水），不属于业务逻辑
-    /// - 它是唯一同时知道 Framework 和 Game 两个世界的地方
-    /// - 框架耦合被限制在此一处
+    /// 游戏入口
     /// </summary>
     public abstract class GameEntryBase : JulyGameEntry
     {
@@ -16,28 +14,23 @@ namespace JulyArch
 
         protected override async UniTask InnerInit()
         {
-            // 1. 创建 GameContext 实例
             _gameContext = GameContext.Create();
 
-            // 2. 注册游戏组件（子类实现）
             RegisterStores(_gameContext);
             RegisterSystems(_gameContext);
 
-            // 3. 初始化 GameContext（初始化 Store/System → 加载数据）
             await _gameContext.InitializeAsync(destroyCancellationToken);
 
-            // 4. 注册应用退出回调
             Application.quitting += OnApplicationQuitting;
 
             _isGameInitialized = true;
 
-            // 5. 执行项目特定的启动后逻辑
             await OnGameInitialized();
         }
 
         protected override void Update()
         {
-            base.Update(); // 驱动框架 Update
+            base.Update();
 
             if (_isGameInitialized)
             {
@@ -56,12 +49,16 @@ namespace JulyArch
         /// <summary>
         /// 注册 Store
         /// </summary>
-        protected virtual void RegisterStores(GameContext ctx) { }
+        protected virtual void RegisterStores(GameContext ctx)
+        {
+        }
 
         /// <summary>
         /// 注册 System
         /// </summary>
-        protected virtual void RegisterSystems(GameContext ctx) { }
+        protected virtual void RegisterSystems(GameContext ctx)
+        {
+        }
 
         /// <summary>
         /// GameContext初始化完成后
@@ -84,7 +81,7 @@ namespace JulyArch
 
             if (_gameContext != null)
             {
-                // 统一走 Destroy 路径（内部同步关闭）
+                // 统一走 Destroy 路径）
                 GameContext.Destroy();
                 _gameContext = null;
             }
