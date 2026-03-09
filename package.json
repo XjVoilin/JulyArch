@@ -1,12 +1,10 @@
 {
   "name": "com.july.arch",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "JulyArch",
   "description": "游戏上层种子框架",
   "unity": "2021.3",
-  "dependencies": {
-    "com.cysharp.unitask": "2.5.10"
-  },
+  "dependencies": {},
   "keywords": [
     "framework",
     "game",
