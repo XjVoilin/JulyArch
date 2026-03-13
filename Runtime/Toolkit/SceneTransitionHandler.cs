@@ -23,7 +23,6 @@ namespace JulyArch
         public static void Initialize()
         {
             GF.Event.Subscribe<SceneLoadStartEvent>(OnSceneLoadStart, typeof(SceneTransitionHandler));
-            GF.Log("[SceneTransitionHandler] 已初始化");
         }
 
         /// <summary>
@@ -37,8 +36,6 @@ namespace JulyArch
         private static void OnSceneLoadStart(SceneLoadStartEvent evt)
         {
             if (evt.LoadMode != LoadSceneMode.Single) return;
-
-            GF.Log($"[SceneTransitionHandler] 场景切换 → {evt.SceneName}，执行统一清理");
 
             GF.UI.CloseAll();
             GF.Audio.StopAllSFX();

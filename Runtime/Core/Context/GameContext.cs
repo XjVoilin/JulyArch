@@ -120,8 +120,6 @@ namespace JulyArch
                 return;
             }
 
-            GF.Log("[GameContext] 开始初始化...");
-
             foreach (var store in _storeList)
             {
                 ct.ThrowIfCancellationRequested();
@@ -147,7 +145,6 @@ namespace JulyArch
                 system.OnStart();
 
             _initialized = true;
-            GF.Log($"[GameContext] 初始化完成 (Stores={_stores.Count}, Systems={_systems.Count})");
             GF.Event.Publish(new GameReadyEvent());
         }
 
@@ -176,7 +173,6 @@ namespace JulyArch
         public async UniTask ShutdownAsync()
         {
             if (!_initialized) return;
-            GF.Log("[GameContext] 开始关闭...");
 
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
@@ -237,7 +233,6 @@ namespace JulyArch
         private void Shutdown()
         {
             if (!_initialized) return;
-            GF.Log("[GameContext] 开始关闭...");
 
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
@@ -271,8 +266,6 @@ namespace JulyArch
             _systems.Clear();
             _systemLookup.Clear();
             _initialized = false;
-
-            GF.Log("[GameContext] 已关闭");
         }
     }
 }
