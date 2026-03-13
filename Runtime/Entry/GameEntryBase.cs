@@ -16,6 +16,8 @@ namespace JulyArch
         {
             _gameContext = GameContext.Create();
 
+    		await OnPreGameInit();
+
             RegisterStores(_gameContext);
             RegisterSystems(_gameContext);
 
@@ -44,6 +46,12 @@ namespace JulyArch
             {
                 _gameContext.LateUpdate(Time.deltaTime);
             }
+        }
+
+		// 热更 DLL 加载点：YooAsset 已就绪，Store/System 注册前
+		protected virtual UniTask OnPreGameInit()
+		{
+            return UniTask.CompletedTask;
         }
 
         /// <summary>
