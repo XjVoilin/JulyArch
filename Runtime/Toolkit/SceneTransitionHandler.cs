@@ -18,7 +18,7 @@ namespace JulyArch
     public static class SceneTransitionHandler
     {
         /// <summary>
-        /// 初始化（在 GameEntry.OnGameInitialized 中调用，早于任何场景加载）
+        /// 初始化（在 GameEntry.OnInfrastructureReady 中调用，早于任何场景加载）
         /// </summary>
         public static void Initialize()
         {

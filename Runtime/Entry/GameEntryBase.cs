@@ -10,6 +10,11 @@ namespace JulyArch
     /// <summary>
     /// 游戏入口
     /// 负责热更流程编排和 GameContext 生命周期管理
+    /// 
+    /// 初始化三段式（GameContext 就绪后）：
+    ///   Phase 1  OnInfrastructureReady  (AOT)  基础设施就绪：Handler 初始化等
+    ///   Phase 2  OnGameLaunch           (热更)  业务起飞：System 驱动进入首个业务场景
+    ///   Phase 3  OnPostLaunch           (AOT)  发射后收尾：销毁启动 UI 等
     /// </summary>
     public abstract class GameEntryBase : JulyGameEntry
     {
@@ -39,12 +44,18 @@ namespace JulyArch
 
             Application.quitting += OnApplicationQuitting;
 
+            // Phase 1: AOT 基础设施就绪（早于场景切换、早于 System.OnUpdate）
+            await OnInfrastructureReady();
+
+            // System 开始接收 OnUpdate / OnLateUpdate
             _isGameInitialized = true;
 
+            // Phase 2: 热更业务起飞（System 驱动进入首个场景）
             if (_registrar != null)
-                await _registrar.OnGameReady();
+                await _registrar.OnGameLaunch();
 
-            await OnGameInitialized();
+            // Phase 3: AOT 发射后收尾（销毁启动 UI 等）
+            await OnPostLaunch();
         }
 
         protected override void Update()
@@ -75,9 +86,21 @@ namespace JulyArch
         }
 
         /// <summary>
-        /// GameContext 初始化完成后，用于启动游戏流程（AOT 侧逻辑）。
+        /// Phase 1: AOT 基础设施就绪。
+        /// 时机：GameContext 初始化完成后，OnGameLaunch 和 System.OnUpdate 之前。
+        /// 典型用途：初始化 SceneTransitionHandler、CameraStackHandler 等全局 Handler。
         /// </summary>
-        protected virtual UniTask OnGameInitialized()
+        protected virtual UniTask OnInfrastructureReady()
+        {
+            return UniTask.CompletedTask;
+        }
+
+        /// <summary>
+        /// Phase 3: 业务流程启动后的 AOT 侧收尾。
+        /// 时机：OnGameLaunch 完成后（首个业务场景已进入）。
+        /// 典型用途：销毁启动 UI、释放启动阶段临时资源。
+        /// </summary>
+        protected virtual UniTask OnPostLaunch()
         {
             return UniTask.CompletedTask;
         }

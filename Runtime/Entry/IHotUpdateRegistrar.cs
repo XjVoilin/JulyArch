@@ -15,8 +15,10 @@ namespace JulyArch
         UniTask RegisterAsync(GameContext ctx);
 
         /// <summary>
-        /// GameContext 初始化完成后的业务设置（如 UIWindowProvider 等）。
+        /// 启动游戏业务流程。
+        /// 时机：AOT 基础设施就绪后、System.OnUpdate 开始驱动后。
+        /// 典型用途：配置 UI 窗口、通过 System 进入首个业务场景。
         /// </summary>
-        UniTask OnGameReady();
+        UniTask OnGameLaunch();
     }
 }
