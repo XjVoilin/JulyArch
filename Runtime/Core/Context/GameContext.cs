@@ -136,10 +136,7 @@ namespace JulyArch
                 store.OnReady();
 
             foreach (var system in _systems)
-            {
-                ct.ThrowIfCancellationRequested();
-                await system.OnInit(this, ct);
-            }
+                system.OnInit(this);
 
             foreach (var system in _systems)
                 system.OnStart();
@@ -155,7 +152,7 @@ namespace JulyArch
             for (var i = 0; i < _systems.Count; i++)
             {
                 try { _systems[i].OnUpdate(deltaTime); }
-                catch (Exception ex) { GF.LogError($"[GameContext] {_systems[i].Name}.OnUpdate 异常: {ex.Message}"); }
+                catch (Exception ex) { GF.LogException(ex); }
             }
         }
 
@@ -166,7 +163,7 @@ namespace JulyArch
             for (int i = 0; i < _systems.Count; i++)
             {
                 try { _systems[i].OnLateUpdate(deltaTime); }
-                catch (Exception ex) { GF.LogError($"[GameContext] {_systems[i].Name}.OnLateUpdate 异常: {ex.Message}"); }
+                catch (Exception ex) { GF.LogException(ex); }
             }
         }
 
@@ -177,7 +174,7 @@ namespace JulyArch
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
                 try { await _systems[i].OnShutdown(); }
-                catch (Exception ex) { GF.LogError($"[GameContext] {_systems[i].Name}.OnShutdown: {ex.Message}"); }
+                catch (Exception ex) { GF.LogException(ex); }
             }
 
             ShutdownDispose();
@@ -220,7 +217,7 @@ namespace JulyArch
             }
             catch (Exception ex)
             {
-                GF.LogError($"[GameContext] Command {typeof(TCommand).Name} 执行异常: {ex}");
+                GF.LogException(ex);
                 return CommandResult.Fail($"Command execution failed: {ex.Message}");
             }
         }
@@ -237,7 +234,7 @@ namespace JulyArch
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
                 try { _systems[i].OnShutdown().Forget(); }
-                catch (Exception ex) { GF.LogError($"[GameContext] {_systems[i].Name}.OnShutdown: {ex.Message}"); }
+                catch (Exception ex) { GF.LogException(ex); }
             }
 
             ShutdownDispose();
@@ -251,13 +248,13 @@ namespace JulyArch
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
                 try { _systems[i].Dispose(); }
-                catch (Exception ex) { GF.LogError($"[GameContext] {_systems[i].Name}.Dispose: {ex.Message}"); }
+                catch (Exception ex) { GF.LogException(ex); }
             }
 
             for (var i = _storeList.Count - 1; i >= 0; i--)
             {
                 try { _storeList[i].Shutdown(); }
-                catch (Exception ex) { GF.LogError($"[GameContext] Store.Shutdown: {ex.Message}"); }
+                catch (Exception ex) { GF.LogException(ex); }
             }
 
             _stores.Clear();

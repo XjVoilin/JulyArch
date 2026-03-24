@@ -1,4 +1,3 @@
-using System.Threading;
 using Cysharp.Threading.Tasks;
 
 namespace JulyArch
@@ -15,10 +14,10 @@ namespace JulyArch
         /// </summary>
         public virtual string Name => GetType().Name;
 
-        public async UniTask OnInit(IGameContext context, CancellationToken ct)
+        public void OnInit(IGameContext context)
         {
             Context = context;
-            await OnInitialize(ct);
+            OnInitialize();
         }
 
         public virtual void OnStart() { }
@@ -32,9 +31,9 @@ namespace JulyArch
         public virtual void Dispose() { }
 
         /// <summary>
-        /// 异步初始化
+        /// 同步初始化钩子
         /// </summary>
-        protected virtual UniTask OnInitialize(CancellationToken ct) => UniTask.CompletedTask;
+        protected virtual void OnInitialize() { }
 
         #region 快捷方法
 

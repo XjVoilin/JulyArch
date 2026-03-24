@@ -12,7 +12,7 @@ namespace JulyArch
         /// 注册热更 Provider / Store / System。
         /// 在 DLL 加载后、Module 初始化前调用。
         /// </summary>
-        UniTask RegisterAsync(GameContext ctx);
+        void Register(GameContext ctx);
 
         /// <summary>
         /// 启动游戏业务流程。

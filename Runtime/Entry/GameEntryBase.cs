@@ -34,7 +34,7 @@ namespace JulyArch
             _gameContext = GameContext.Create();
             _registrar = FindRegistrar();
             if (_registrar != null)
-                await _registrar.RegisterAsync(_gameContext);
+                _registrar.Register(_gameContext);
 
             // Step 4: 统一初始化所有待处理的 Provider/Module/Store/System
             await InitPendingAsync();

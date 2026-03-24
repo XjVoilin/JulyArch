@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading;
+using System;
 using Cysharp.Threading.Tasks;
 
 namespace JulyArch
@@ -11,7 +10,7 @@ namespace JulyArch
     public interface IGameSystem : IDisposable
     {
         string Name { get; }
-        UniTask OnInit(IGameContext context, CancellationToken ct);
+        void OnInit(IGameContext context);
         void OnStart();
         void OnUpdate(float deltaTime);
         void OnLateUpdate(float deltaTime);
