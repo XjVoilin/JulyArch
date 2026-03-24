@@ -21,7 +21,7 @@ namespace JulyArch
             get
             {
                 if (_instance == null)
-                    GF.LogError("[GameContext] 实例未创建，请确保 GameEntryBase 已启动");
+                    GF.LogError("[GameContext] 实例未创建，请确保 GameEntry 已启动");
                 return _instance;
             }
         }
@@ -38,7 +38,7 @@ namespace JulyArch
             return _instance;
         }
 
-        internal static void Destroy()
+        public static void Destroy()
         {
             _instance?.Shutdown();
             _instance = null;
