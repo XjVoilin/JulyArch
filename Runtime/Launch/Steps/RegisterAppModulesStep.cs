@@ -33,7 +33,7 @@ using JulyCore.Provider.UI;
 
 namespace JulyArch.Launch.Steps
 {
-    public class RegisterAppModules : ILaunchStep
+    public class RegisterAppModulesStep : ILaunchStep
     {
         public string Name => "Register App Modules";
 
