@@ -1,44 +1,64 @@
+using System;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using JulyCore;
-using JulyCore.Provider.Scene.Events;
-using UnityEngine.SceneManagement;
+using JulyCore.Data.UI;
 
 namespace JulyArch
 {
     /// <summary>
     /// 场景切换协调器
     /// 
-    /// 职责：协调场景切换时"所有场景都需要"的统一清理行为
-    /// 
-    /// 设计原则：
-    /// - 只处理对所有场景切换都相同的行为（关 UI、停 SFX 等）
-    /// - 因场景而异的行为（播 BGM、开 HUD）由各场景的 View 负责
-    /// - UIModule / AudioModule / SceneModule 都是底层框架模块，彼此独立
-    /// - 本类处于上层，统一协调下层模块，符合依赖方向
+    /// 职责：统一处理运行时场景切换的完整流程
+    /// 显示过渡界面 → 清理业务 UI / 音效 → 执行准备逻辑 → 切换场景 → 隐藏过渡界面
     /// </summary>
     public static class SceneTransitionHandler
     {
+        private static UIOpenOptions _loadingOptions;
+
         /// <summary>
-        /// 初始化（在 GameEntry.OnInfrastructureReady 中调用，早于任何场景加载）
+        /// 初始化过渡窗口配置（热更阶段调用，传入项目侧的窗口 ID 和名称）
         /// </summary>
-        public static void Initialize()
+        public static void Initialize(int loadingWindowId, string loadingWindowName)
         {
-            GF.Event.Subscribe<SceneLoadStartEvent>(OnSceneLoadStart, typeof(SceneTransitionHandler));
+            _loadingOptions = new UIOpenOptions
+            {
+                WindowIdentifier = new WindowIdentifier(loadingWindowId, loadingWindowName),
+                Layer = UILayer.Loading,
+                AddToStack = false
+            };
         }
 
         /// <summary>
-        /// 关闭
+        /// 带过渡界面的场景切换。
+        /// onPrepare 在过渡界面显示后、场景切换前执行，用于下载资源、加载配置等。
         /// </summary>
-        public static void Shutdown()
+        public static async UniTask SwitchAsync(
+            string sceneName,
+            Func<CancellationToken, UniTask> onPrepare = null,
+            CancellationToken ct = default)
         {
-            GF.Event.UnsubscribeAll(typeof(SceneTransitionHandler));
-        }
+            if (_loadingOptions != null)
+                await GF.UI.OpenAsync(_loadingOptions, ct);
 
-        private static void OnSceneLoadStart(SceneLoadStartEvent evt)
-        {
-            if (evt.LoadMode != LoadSceneMode.Single) return;
+            try
+            {
+                GF.UI.CloseLayer(UILayer.Background);
+                GF.UI.CloseLayer(UILayer.Normal);
+                GF.UI.CloseLayer(UILayer.Popup);
+                GF.UI.CloseLayer(UILayer.Top);
+                GF.Audio.StopAllSFX();
 
-            GF.UI.CloseAll();
-            GF.Audio.StopAllSFX();
+                if (onPrepare != null)
+                    await onPrepare(ct);
+
+                await GF.Scene.SwitchAsync(sceneName, ct);
+            }
+            finally
+            {
+                if (_loadingOptions != null)
+                    GF.UI.Close(_loadingOptions.WindowIdentifier.ID);
+            }
         }
     }
 }
