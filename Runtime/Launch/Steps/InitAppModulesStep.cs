@@ -4,7 +4,7 @@ using JulyCore.Core.Launch;
 
 namespace JulyArch.Launch.Steps
 {
-    public class InitAppModules : ILaunchStep
+    public class InitAppModulesStep : ILaunchStep
     {
         public string Name => "Init App Modules";
 
