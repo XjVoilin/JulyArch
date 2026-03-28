@@ -1,23 +1,21 @@
-using System;
-using System.Reflection;
 using Cysharp.Threading.Tasks;
 using JulyArch;
 using JulyCore.Core;
 using JulyCore.Core.Launch;
 using JulyCore.Module.ABTest;
 using JulyCore.Module.Activity;
-using JulyCore.Module.Analytics;
 using JulyCore.Module.Audio;
 using JulyCore.Module.Config;
 using JulyCore.Module.Guide;
 using JulyCore.Module.Localization;
 using JulyCore.Module.RedDot;
+using JulyCore.Module.Resource;
 using JulyCore.Module.Save;
+using JulyCore.Module.Scene;
 using JulyCore.Module.Task;
 using JulyCore.Module.UI;
 using JulyCore.Provider.ABTest;
 using JulyCore.Provider.Activity;
-using JulyCore.Provider.Analytics;
 using JulyCore.Provider.Audio;
 using JulyCore.Provider.Config;
 using JulyCore.Provider.Data;
@@ -39,12 +37,13 @@ namespace JulyArch.Launch.Steps
 
         public UniTask<bool> ExecuteAsync(LaunchContext ctx)
         {
+            ctx.RegisterModule<ResourceModule>();
+            ctx.RegisterModule<SceneModule>();
             ctx.RegisterModule<LocalizationModule>();
             ctx.RegisterModule<UIModule>();
             ctx.RegisterModule<AudioModule>();
             ctx.RegisterModule<SaveModule>();
             ctx.RegisterModule<ConfigModule>();
-            ctx.RegisterModule<AnalyticsModule>();
             ctx.RegisterModule<ABTestModule>();
             ctx.RegisterModule<TaskModule>();
             ctx.RegisterModule<RedDotModule>();
@@ -56,19 +55,18 @@ namespace JulyArch.Launch.Steps
             var serializeProvider = ctx.Registry.Resolve<ISerializeProvider>();
             var encryptionProvider = ctx.Registry.Resolve<IEncryptionProvider>();
 
-            Register<IAnalyticsProvider>(ctx, new NullAnalyticsProvider());
-            Register<IConfigProvider>(ctx, new ConfigProvider(resourceProvider));
-            Register<IUIProvider>(ctx, new UIProvider(resourceProvider, poolProvider));
-            Register<IAudioProvider>(ctx, new UnityAudioProvider(resourceProvider, poolProvider));
-            Register<ISaveProvider>(ctx, new LocalFileSaveProvider(serializeProvider, encryptionProvider));
-            Register<ILocalizationProvider>(ctx, new LocalizationProvider(resourceProvider, serializeProvider));
-            Register<IABTestProvider>(ctx, new ABTestProvider());
-            Register<ITaskProvider>(ctx, new TaskProvider());
-            Register<IRedDotProvider>(ctx, new RedDotProvider());
-            Register<IGuideProvider>(ctx, new GuideProvider());
+            ctx.RegisterProvider<IConfigProvider>(new ConfigProvider(resourceProvider));
+            ctx.RegisterProvider<IUIProvider>(new UIProvider(resourceProvider, poolProvider));
+            ctx.RegisterProvider<IAudioProvider>(new UnityAudioProvider(resourceProvider, poolProvider));
+            ctx.RegisterProvider<ISaveProvider>(new LocalFileSaveProvider(serializeProvider, encryptionProvider));
+            ctx.RegisterProvider<ILocalizationProvider>(new LocalizationProvider(resourceProvider, serializeProvider));
+            ctx.RegisterProvider<IABTestProvider>(new ABTestProvider());
+            ctx.RegisterProvider<ITaskProvider>(new TaskProvider());
+            ctx.RegisterProvider<IRedDotProvider>(new RedDotProvider());
+            ctx.RegisterProvider<IGuideProvider>(new GuideProvider());
 
             var saveProvider = ctx.Registry.Resolve<ISaveProvider>();
-            Register<IActivityProvider>(ctx, new SavedActivityProvider(saveProvider));
+            ctx.RegisterProvider<IActivityProvider>(new SavedActivityProvider(saveProvider));
 
             var gameContext = GameContext.Create();
             var registrar = FindRegistrar();
@@ -82,34 +80,20 @@ namespace JulyArch.Launch.Steps
             return UniTask.FromResult(true);
         }
 
-        private static void Register<T>(LaunchContext ctx, T instance) where T : IProvider
-        {
-            ctx.Registry.Register(instance);
-            ctx.TrackProvider(instance);
-        }
-
         private static IHotUpdateRegistrar FindRegistrar()
         {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            const string TypeFullName = "GooseMarket.HotUpdateRegistrar";
+            try
             {
-                Type[] types;
-                try
-                {
-                    types = assembly.GetTypes();
-                }
-                catch (ReflectionTypeLoadException e)
-                {
-                    types = Array.FindAll(e.Types, t => t != null);
-                }
-
-                foreach (var type in types)
-                {
-                    if (typeof(IHotUpdateRegistrar).IsAssignableFrom(type)
-                        && !type.IsAbstract && !type.IsInterface)
-                        return (IHotUpdateRegistrar)Activator.CreateInstance(type);
-                }
+                var assembly = System.Reflection.Assembly.Load("Assembly-CSharp");
+                var type = assembly.GetType(TypeFullName);
+                if (type != null)
+                    return (IHotUpdateRegistrar)System.Activator.CreateInstance(type);
             }
-
+            catch (System.Exception e)
+            {
+                JLogger.LogWarning($"[RegisterApp] HotUpdateRegistrar not found: {e.Message}");
+            }
             return null;
         }
     }
