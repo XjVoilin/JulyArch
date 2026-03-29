@@ -26,7 +26,7 @@ namespace JulyArch
             }
         }
 
-        internal static GameContext Create()
+        public static GameContext Create()
         {
             if (_instance != null)
             {
