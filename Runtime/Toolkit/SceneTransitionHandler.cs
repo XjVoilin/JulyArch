@@ -1,4 +1,3 @@
-using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using JulyCore;
@@ -9,12 +8,15 @@ namespace JulyArch
     /// <summary>
     /// 场景切换协调器
     /// 
-    /// 职责：统一处理运行时场景切换的完整流程
-    /// 显示过渡界面 → 清理业务 UI / 音效 → 执行准备逻辑 → 切换场景 → 隐藏过渡界面
+    /// 用法：
+    ///   await SceneTransitionHandler.EnterAsync(ct);
+    ///   // … 下载资源、切场景、初始化 …
+    ///   await SceneTransitionHandler.ExitAsync(ct);
     /// </summary>
     public static class SceneTransitionHandler
     {
         private static UIOpenOptions _loadingOptions;
+        private static ISceneTransitionView _activeView;
 
         /// <summary>
         /// 初始化过渡窗口配置（热更阶段调用，传入项目侧的窗口 ID 和名称）
@@ -30,35 +32,38 @@ namespace JulyArch
         }
 
         /// <summary>
-        /// 带过渡界面的场景切换。
-        /// onPrepare 在过渡界面显示后、场景切换前执行，用于下载资源、加载配置等。
+        /// 入场：打开过渡窗口 → 播放入场动画 → 清理业务 UI / 音效
         /// </summary>
-        public static async UniTask SwitchAsync(
-            string sceneName,
-            Func<CancellationToken, UniTask> onPrepare = null,
-            CancellationToken ct = default)
+        public static async UniTask EnterAsync(CancellationToken ct = default)
         {
+            _activeView = null;
+
             if (_loadingOptions != null)
-                await GF.UI.OpenAsync(_loadingOptions, ct);
+                _activeView = await GF.UI.OpenAsync(_loadingOptions, ct) as ISceneTransitionView;
 
-            try
+            if (_activeView != null)
+                await _activeView.PlayEnterAsync();
+
+            GF.UI.CloseLayer(UILayer.Background);
+            GF.UI.CloseLayer(UILayer.Normal);
+            GF.UI.CloseLayer(UILayer.Popup);
+            GF.UI.CloseLayer(UILayer.Top);
+            GF.Audio.StopAllSFX();
+        }
+
+        /// <summary>
+        /// 退场：播放退场动画 → 关闭过渡窗口
+        /// </summary>
+        public static async UniTask ExitAsync(CancellationToken ct = default)
+        {
+            if (_activeView != null)
             {
-                GF.UI.CloseLayer(UILayer.Background);
-                GF.UI.CloseLayer(UILayer.Normal);
-                GF.UI.CloseLayer(UILayer.Popup);
-                GF.UI.CloseLayer(UILayer.Top);
-                GF.Audio.StopAllSFX();
-
-                if (onPrepare != null)
-                    await onPrepare(ct);
-
-                await GF.Scene.SwitchAsync(sceneName, ct);
+                await _activeView.PlayExitAsync();
+                _activeView = null;
             }
-            finally
-            {
-                if (_loadingOptions != null)
-                    GF.UI.Close(_loadingOptions.WindowIdentifier.ID);
-            }
+
+            if (_loadingOptions != null)
+                await GF.UI.CloseAsync(_loadingOptions.WindowIdentifier.ID);
         }
     }
 }
