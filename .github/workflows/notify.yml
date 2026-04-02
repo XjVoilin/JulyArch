@@ -1,0 +1,28 @@
+name: Trigger Nova Notification
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  notify-trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Log commit information
+        run: |
+          echo "========================================"
+          echo "🚀 GitHub提交触发通知"
+          echo "========================================"
+          echo "📦 仓库: ${{ github.repository }}"
+          echo "🔧 提交ID: ${{ github.sha }}"
+          echo "📝 提交消息: ${{ github.event.head_commit.message }}"
+          echo "👤 作者: ${{ github.actor }}"
+          echo "⏰ 触发时间: $(date)"
+          echo "🔗 提交链接: https://github.com/github.repository/commit/{{ github.sha }}"
+          echo "========================================"
+          echo ""
+          echo "✅ 触发完成"
+          echo "Nova会检测到这个workflow运行并发送QQ通知"
