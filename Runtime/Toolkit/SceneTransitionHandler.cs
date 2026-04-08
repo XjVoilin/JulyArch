@@ -19,15 +19,20 @@ namespace JulyArch
         private static ISceneTransitionView _activeView;
 
         /// <summary>
-        /// 初始化过渡窗口配置（热更阶段调用，传入项目侧的窗口 ID 和名称）
+        /// 初始化过渡窗口配置（热更阶段调用，传入项目侧的窗口 ID 和名称）。
+        /// 如果已通过 <see cref="GF.UI.SetWindowConfig"/> 注册了配置提供者，
+        /// 会自动合并配置表中的 IgnoreSafeArea 等字段。
         /// </summary>
         public static void Initialize(int loadingWindowId, string loadingWindowName)
         {
+            var configOptions = GF.UI.GetWindowConfig(loadingWindowId);
+
             _loadingOptions = new UIOpenOptions
             {
                 WindowIdentifier = new WindowIdentifier(loadingWindowId, loadingWindowName),
                 Layer = UILayer.Loading,
-                AddToStack = false
+                AddToStack = false,
+                IgnoreSafeArea = configOptions?.IgnoreSafeArea ?? false
             };
         }
 
