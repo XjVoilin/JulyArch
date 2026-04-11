@@ -25,6 +25,11 @@ namespace JulyArch
                 return _instance;
             }
         }
+        
+        /// <summary>
+        /// 框架内部用：提供 ICommandContext 访问（供 ArchExtensions.GetStore 调用）
+        /// </summary>
+        internal static ICommandContext CommandContext => _instance;
 
         public static GameContext Create()
         {
@@ -43,12 +48,6 @@ namespace JulyArch
             _instance?.Shutdown();
             _instance = null;
         }
-
-        /// <summary>
-        /// 框架内部用：获取 Store 实例（供 GameSystemBase.GetStore 委托）
-        /// </summary>
-        internal static T GetStoreInternal<T>() where T : class, IStore
-            => _instance?.GetStore<T>();
 
         /// <summary>
         /// 帧驱动（供 GameEntry.Update 调用）
@@ -159,7 +158,7 @@ namespace JulyArch
                 store.OnReady();
 
             foreach (var system in _systems)
-                system.OnInit(this);
+                system.OnInit();
 
             foreach (var system in _systems)
                 system.OnStart();

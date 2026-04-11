@@ -1,5 +1,4 @@
-﻿using JulyCore;
-using JulyCore.Provider.UI;
+﻿using JulyCore.Provider.UI;
 
 namespace JulyArch
 {
@@ -21,17 +20,5 @@ namespace JulyArch
             => ArchExtensions.Execute(this, command);
 
         #endregion
-
-        /// <summary>
-        /// UI 专用：执行命令 + 失败时自动弹出错误提示
-        /// </summary>
-        protected CommandResult ExecuteCommand<TCommand>(
-            TCommand command, bool showErrorTip = true) where TCommand : ICommand
-        {
-            var result = Execute(command);
-            if (!result.IsSuccess && showErrorTip && !string.IsNullOrEmpty(result.Message))
-                GF.UI.ShowTip(result.Message);
-            return result;
-        }
     }
 }

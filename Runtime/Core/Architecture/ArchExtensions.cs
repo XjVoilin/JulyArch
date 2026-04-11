@@ -12,6 +12,6 @@ namespace JulyArch
             => GameContext.Instance.Execute(command);
 
         internal static T GetStore<T>(this ICanGetStore self) where T : class, IStore
-            => GameContext.GetStoreInternal<T>();
+            => GameContext.CommandContext.GetStore<T>();
     }
 }

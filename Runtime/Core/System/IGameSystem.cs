@@ -9,8 +9,7 @@ namespace JulyArch
     /// </summary>
     public interface IGameSystem : IDisposable
     {
-        string Name { get; }
-        void OnInit(IGameContext context);
+        void OnInit();
         void OnStart();
         void OnUpdate(float deltaTime);
         void OnLateUpdate(float deltaTime);
