@@ -2,21 +2,12 @@ using Cysharp.Threading.Tasks;
 
 namespace JulyArch
 {
-    public abstract class GameSystemBase : IGameSystem
+    public abstract class GameSystemBase : IGameSystem, ICanQuery, ICanGetSystem, ICanExecute, ICanGetStore
     {
-        /// <summary>
-        /// GameContext 提供的上下文接口
-        /// </summary>
-        protected IGameContext Context { get; private set; }
-
-        /// <summary>
-        /// System名称，默认为类名
-        /// </summary>
         public virtual string Name => GetType().Name;
 
-        public void OnInit(IGameContext context)
+        void IGameSystem.OnInit(IGameContext context)
         {
-            Context = context;
             OnInitialize();
         }
 
@@ -30,24 +21,25 @@ namespace JulyArch
 
         public virtual void Dispose() { }
 
-        /// <summary>
-        /// 同步初始化钩子
-        /// </summary>
         protected virtual void OnInitialize() { }
 
-        #region 快捷方法
+        #region 快捷方法（委托给 ArchExtensions）
 
         protected T Query<T>() where T : class, IStoreQueries
-            => Context.Query<T>();
-
-        protected T GetStore<T>() where T : class, IStore
-            => (Context as ICommandContext)?.GetStore<T>();
-
-        protected UniTask<CommandResult> Execute<TCommand>(TCommand command) where TCommand : ICommand
-            => Context.Execute(command);
+            => ArchExtensions.Query<T>(this);
 
         protected T GetSystem<T>() where T : class, IGameSystem
-            => Context.GetSystem<T>();
+            => ArchExtensions.GetSystem<T>(this);
+
+        protected CommandResult Execute<TCommand>(TCommand command) where TCommand : ICommand
+            => ArchExtensions.Execute(this, command);
+
+        /// <summary>
+        /// 获取 System 所管理的 Store。仅用于 System 直接管理自己的 Store。
+        /// 跨 Store 操作必须走 Command。
+        /// </summary>
+        protected T GetStore<T>() where T : class, IStore
+            => ArchExtensions.GetStore<T>(this);
 
         #endregion
     }

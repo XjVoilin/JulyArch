@@ -7,17 +7,14 @@ namespace JulyArch
     /// <summary>
     /// Store 基类 —— 数据的唯一所有者
     /// </summary>
-    public abstract class StoreBase<TData> : IStore where TData : class, new()
+    public abstract class StoreBase<TData> : IStore, ICanQuery where TData : class, new()
     {
-        private GameContext _context;
-
         protected TData Data { get; private set; }
 
         #region IStore 显式实现
 
-        void IStore.Initialize(GameContext context)
+        void IStore.Initialize()
         {
-            _context = context;
             OnInitialize();
         }
 
@@ -40,21 +37,13 @@ namespace JulyArch
 
         #endregion
 
-        #region 受保护的工具方法
+        #region 快捷方法（委托给 ArchExtensions）
 
-        /// <summary>
-        /// 获取其他 Store 的只读查询接口
-        /// </summary>
         protected T Query<T>() where T : class, IStoreQueries
-            => _context.Query<T>();
+            => ArchExtensions.Query<T>(this);
 
-        /// <summary>
-        /// 发布领域事件
-        /// </summary>
         protected void PublishEvent<T>(T eventData) where T : IEvent
-        {
-            GF.Event.Publish(eventData);
-        }
+            => GF.Event.Publish(eventData);
 
         #endregion
 
@@ -65,21 +54,13 @@ namespace JulyArch
             return UniTask.FromResult(new TData());
         }
 
-        protected virtual void OnInitialize()
-        {
-        }
+        protected virtual void OnInitialize() { }
 
-        protected virtual void OnDataLoaded()
-        {
-        }
+        protected virtual void OnDataLoaded() { }
 
-        protected virtual void OnReady()
-        {
-        }
+        protected virtual void OnReady() { }
 
-        protected virtual void OnShutdown()
-        {
-        }
+        protected virtual void OnShutdown() { }
 
         #endregion
     }

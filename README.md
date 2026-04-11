@@ -139,7 +139,7 @@ Command 是**业务操作的唯一编排入口**。当一个操作涉及多个 S
 - 通过 `context.Query<T>()` 获取只读查询接口做前置检查
 - 通过 `context.GetStore<T>()` 获取具体 Store 进行持久数据变更
 - 通过 `context.GetSystem<T>()` 获取 System 驱动运行时逻辑
-- Execute 返回 `UniTask<CommandResult>`，前置检查合并在 Execute 开头
+- Execute 返回 `CommandResult`（同步），前置检查合并在 Execute 开头
 - **无需注册**：`GameContext.Execute()` 直接调用 `command.Execute(this)`
 
 **示例（纯 Store 编排）：**
@@ -151,21 +151,19 @@ public readonly struct PurchaseItemCommand : ICommand
 
     public PurchaseItemCommand(int itemId) => ItemId = itemId;
 
-    public UniTask<CommandResult> Execute(ICommandContext context)
+    public CommandResult Execute(ICommandContext ctx)
     {
-        // 前置检查
-        var currency = context.Query<ICurrencyQueries>();
+        var currency = ctx.Query<ICurrencyQueries>();
         if (!currency.HasEnough(CurrencyType.Gold, GetPrice(ItemId)))
-            return UniTask.FromResult(CommandResult.Fail("金币不足"));
+            return CommandResult.Fail("金币不足");
 
-        // 执行变更（跨 Store）
-        var currencyStore = context.GetStore<CurrencyStore>();
+        var currencyStore = ctx.GetStore<CurrencyStore>();
         currencyStore.ConsumeCurrency(CurrencyType.Gold, GetPrice(ItemId));
 
-        var inventoryStore = context.GetStore<InventoryStore>();
+        var inventoryStore = ctx.GetStore<InventoryStore>();
         inventoryStore.AddItem(ItemId, default, GF.Time.ServerTimeUtcTimestamp);
 
-        return UniTask.FromResult(CommandResult.Success());
+        return CommandResult.Success();
     }
 }
 ```
@@ -179,22 +177,19 @@ public readonly struct DungeonEnterCommand : ICommand
 
     public DungeonEnterCommand(int dungeonId) => DungeonId = dungeonId;
 
-    public UniTask<CommandResult> Execute(ICommandContext context)
+    public CommandResult Execute(ICommandContext ctx)
     {
-        // 前置检查（Query 只读接口）
-        var dungeon = context.Query<IDungeonQueries>();
+        var dungeon = ctx.Query<IDungeonQueries>();
         if (!dungeon.IsDungeonUnlocked(DungeonId))
-            return UniTask.FromResult(CommandResult.Fail("副本未解锁"));
+            return CommandResult.Fail("副本未解锁");
 
-        // 扣除资源（Store 变更）
-        var currencyStore = context.GetStore<CurrencyStore>();
+        var currencyStore = ctx.GetStore<CurrencyStore>();
         currencyStore.ConsumeCurrency(CurrencyType.Energy, GetEntryCost(DungeonId));
 
-        // 启动运行时（System 驱动）
-        var dungeonSystem = context.GetSystem<DungeonSystem>();
+        var dungeonSystem = ctx.GetSystem<DungeonSystem>();
         dungeonSystem.EnterDungeon(DungeonId);
 
-        return UniTask.FromResult(CommandResult.Success());
+        return CommandResult.Success();
     }
 }
 ```
@@ -308,24 +303,24 @@ public class MyPanel : GameUIView
 {
     private void OnBuyClick()
     {
-        ExecuteCommand(new PurchaseItemCommand(itemId)).Forget();
+        ExecuteCommand(new PurchaseItemCommand(itemId));
     }
 }
 
 // ✅ 在 Command.Execute 中编排 Store 和 System
-public UniTask<CommandResult> Execute(ICommandContext context)
+public CommandResult Execute(ICommandContext ctx)
 {
-    var store = context.GetStore<CurrencyStore>();
+    var store = ctx.GetStore<CurrencyStore>();
     store.ConsumeCurrency(CurrencyType.Energy, 10);
 
-    var system = context.GetSystem<DungeonSystem>();
+    var system = ctx.GetSystem<DungeonSystem>();
     system.EnterDungeon(dungeonId);
 
-    return UniTask.FromResult(CommandResult.Success());
+    return CommandResult.Success();
 }
 
-// ✅ 在非 View 代码中通过 GameContext.Instance 访问
-var result = await GameContext.Instance.Execute(new PurchaseItemCommand { ... });
+// ✅ 在非 View 代码中通过能力接口访问
+var result = this.Execute(new PurchaseItemCommand { ... });
 ```
 
 ### Command 使用时机
@@ -386,15 +381,15 @@ public readonly struct MyCommand : ICommand
 
     public MyCommand(int param) => Param = param;
 
-    public UniTask<CommandResult> Execute(ICommandContext context)
+    public CommandResult Execute(ICommandContext ctx)
     {
         // 前置检查 + 执行变更
-        return UniTask.FromResult(CommandResult.Success());
+        return CommandResult.Success();
     }
 }
 ```
 
-无需注册，直接可用：`await GameContext.Instance.Execute(new MyCommand(42));`
+无需注册，直接可用：`Execute(new MyCommand(42));`
 
 ### 新增 View（场景）
 

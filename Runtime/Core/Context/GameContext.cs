@@ -16,12 +16,12 @@ namespace JulyArch
 
         private static GameContext _instance;
 
-        public static IGameContext Instance
+        internal static IGameContext Instance
         {
             get
             {
                 if (_instance == null)
-                    GF.LogError("[GameContext] 实例未创建，请确保 GameEntry 已启动");
+                    throw new System.InvalidOperationException("[GameContext] 实例未创建，请确保 GameEntry 已启动");
                 return _instance;
             }
         }
@@ -43,6 +43,29 @@ namespace JulyArch
             _instance?.Shutdown();
             _instance = null;
         }
+
+        /// <summary>
+        /// 框架内部用：获取 Store 实例（供 GameSystemBase.GetStore 委托）
+        /// </summary>
+        internal static T GetStoreInternal<T>() where T : class, IStore
+            => _instance?.GetStore<T>();
+
+        /// <summary>
+        /// 帧驱动（供 GameEntry.Update 调用）
+        /// </summary>
+        public static void Tick(float deltaTime) => _instance?.Update(deltaTime);
+
+        /// <summary>
+        /// 帧驱动（供 GameEntry.LateUpdate 调用）
+        /// </summary>
+        public static void LateTick(float deltaTime) => _instance?.LateUpdate(deltaTime);
+
+#if JULYGF_DEBUG || UNITY_EDITOR
+        /// <summary>
+        /// 仅 Debug / Editor 可用，绕过架构访问控制
+        /// </summary>
+        public static ICommandContext DebugContext => _instance;
+#endif
 
         #endregion
 
@@ -123,7 +146,7 @@ namespace JulyArch
             foreach (var store in _storeList)
             {
                 ct.ThrowIfCancellationRequested();
-                store.Initialize(this);
+                store.Initialize();
             }
 
             foreach (var store in _storeList)
@@ -209,11 +232,11 @@ namespace JulyArch
             return null;
         }
 
-        public async UniTask<CommandResult> Execute<TCommand>(TCommand command) where TCommand : ICommand
+        public CommandResult Execute<TCommand>(TCommand command) where TCommand : ICommand
         {
             try
             {
-                return await command.Execute(this);
+                return command.Execute(this);
             }
             catch (Exception ex)
             {

@@ -11,7 +11,7 @@ namespace JulyArch
         /// <summary>
         /// 初始化
         /// </summary>
-        void Initialize(GameContext context);
+        void Initialize();
 
         /// <summary>
         /// 加载存档数据

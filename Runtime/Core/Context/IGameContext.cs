@@ -1,6 +1,4 @@
-﻿using Cysharp.Threading.Tasks;
-
-namespace JulyArch
+﻿namespace JulyArch
 {
     /// <summary>
     /// 游戏上下文接口
@@ -18,9 +16,9 @@ namespace JulyArch
         T GetSystem<T>() where T : class, IGameSystem;
 
         /// <summary>
-        /// 执行命令
+        /// 执行命令（同步）
         /// </summary>
-        UniTask<CommandResult> Execute<TCommand>(TCommand command) where TCommand : ICommand;
+        CommandResult Execute<TCommand>(TCommand command) where TCommand : ICommand;
     }
 
     /// <summary>
