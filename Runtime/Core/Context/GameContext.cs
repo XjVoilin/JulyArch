@@ -131,8 +131,8 @@ namespace JulyArch
         }
 
         /// <summary>
-        /// 初始化：Store.Initialize → LoadAsync → OnReady → System.OnInit → OnStart → GameReadyEvent
-        /// 任何步骤失败都会中断初始化并向上抛出异常
+        /// 初始化：Store.Initialize → Load/LoadAsync → OnReady → System.OnInit → OnStart → GameReadyEvent
+        /// 同步 Store 立即 Load，异步 Store（IAsyncLoadable）并行 WhenAll，全部就绪后统一 OnReady
         /// </summary>
         public async UniTask InitializeAsync(CancellationToken ct = default)
         {
@@ -142,17 +142,21 @@ namespace JulyArch
                 return;
             }
 
-            foreach (var store in _storeList)
-            {
-                ct.ThrowIfCancellationRequested();
-                store.Initialize();
-            }
+            var asyncTasks = new List<UniTask>();
 
             foreach (var store in _storeList)
             {
                 ct.ThrowIfCancellationRequested();
-                await store.LoadAsync();
+                store.Initialize();
+
+                if (store is IAsyncLoadable asyncLoadable)
+                    asyncTasks.Add(asyncLoadable.LoadAsync());
+                else
+                    store.Load();
             }
+
+            if (asyncTasks.Count > 0)
+                await UniTask.WhenAll(asyncTasks);
 
             foreach (var store in _storeList)
                 store.OnReady();
@@ -187,19 +191,6 @@ namespace JulyArch
                 try { _systems[i].OnLateUpdate(deltaTime); }
                 catch (Exception ex) { GF.LogException(ex); }
             }
-        }
-
-        public async UniTask ShutdownAsync()
-        {
-            if (!_initialized) return;
-
-            for (var i = _systems.Count - 1; i >= 0; i--)
-            {
-                try { await _systems[i].OnShutdown(); }
-                catch (Exception ex) { GF.LogException(ex); }
-            }
-
-            ShutdownDispose();
         }
 
         #region ICommandContext / IGameContext
@@ -246,16 +237,13 @@ namespace JulyArch
 
         #endregion
 
-        /// <summary>
-        /// 同步关闭（用于 Create 重建和 Destroy 退出场景，System 的异步关闭会被 Forget）
-        /// </summary>
         private void Shutdown()
         {
             if (!_initialized) return;
 
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
-                try { _systems[i].OnShutdown().Forget(); }
+                try { _systems[i].OnShutdown(); }
                 catch (Exception ex) { GF.LogException(ex); }
             }
 
@@ -263,7 +251,7 @@ namespace JulyArch
         }
 
         /// <summary>
-        /// Shutdown/ShutdownAsync 共享的后半段：Dispose System → Shutdown Store → 清理
+        /// Dispose System → Shutdown Store → 清理
         /// </summary>
         private void ShutdownDispose()
         {

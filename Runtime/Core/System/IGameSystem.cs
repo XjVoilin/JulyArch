@@ -1,5 +1,4 @@
 using System;
-using Cysharp.Threading.Tasks;
 
 namespace JulyArch
 {
@@ -13,6 +12,6 @@ namespace JulyArch
         void OnStart();
         void OnUpdate(float deltaTime);
         void OnLateUpdate(float deltaTime);
-        UniTask OnShutdown();
+        void OnShutdown();
     }
 }

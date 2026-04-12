@@ -1,31 +1,24 @@
-﻿using Cysharp.Threading.Tasks;
-
-namespace JulyArch
+﻿namespace JulyArch
 {
     /// <summary>
-    /// Store 是持久数据的唯一所有者，负责加载、保存、领域操作。
-    /// Store 不持有运行时状态，不参与帧更新。
+    /// Store 是可存储数据（服务器同步 / 本地持久化）的唯一所有者。
+    /// Store 不持有运行时瞬时状态（瞬时状态由 System 管理），不参与帧更新。
     /// </summary>
     public interface IStore
     {
-        /// <summary>
-        /// 初始化
-        /// </summary>
         void Initialize();
 
         /// <summary>
-        /// 加载存档数据
+        /// 同步加载数据（纯内存 Store）。
+        /// 需要异步加载的 Store 应实现 IAsyncLoadable，GameContext 会分派调用。
         /// </summary>
-        UniTask LoadAsync();
+        void Load();
 
         /// <summary>
         /// 所有 Store 数据加载完成后的回调
         /// </summary>
         void OnReady();
 
-        /// <summary>
-        /// 关闭
-        /// </summary>
         void Shutdown();
     }
 

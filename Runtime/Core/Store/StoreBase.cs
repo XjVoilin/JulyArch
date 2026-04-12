@@ -1,15 +1,16 @@
-using Cysharp.Threading.Tasks;
+using System;
 using JulyCore;
 using JulyCore.Core;
 
 namespace JulyArch
 {
     /// <summary>
-    /// Store 基类 —— 数据的唯一所有者
+    /// Store 基类 —— 可存储数据（服务器同步 / 本地持久化）的唯一所有者
+    /// 运行时瞬时状态（不需要存储的数据）由 System 管理，不放 Store
     /// </summary>
     public abstract class StoreBase<TData> : IStore, ICanQuery where TData : class, new()
     {
-        protected TData Data { get; private set; }
+        protected TData Data { get; set; }
 
         #region IStore 显式实现
 
@@ -18,9 +19,14 @@ namespace JulyArch
             OnInitialize();
         }
 
-        async UniTask IStore.LoadAsync()
+        void IStore.Load()
         {
-            Data = await LoadDataAsync();
+            if (this is IAsyncLoadable)
+            {
+                throw new InvalidOperationException(
+                    $"[{GetType().Name}] implements IAsyncLoadable, must use LoadAsync() via GameContext");
+            }
+            Data = LoadData();
             OnDataLoaded();
         }
 
@@ -49,9 +55,9 @@ namespace JulyArch
 
         #region 子类可覆盖的生命周期钩子
 
-        protected virtual UniTask<TData> LoadDataAsync()
+        protected virtual TData LoadData()
         {
-            return UniTask.FromResult(new TData());
+            return new TData();
         }
 
         protected virtual void OnInitialize() { }

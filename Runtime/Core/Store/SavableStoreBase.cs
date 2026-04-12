@@ -5,27 +5,20 @@ using JulyCore.Data.Save;
 namespace JulyArch
 {
     /// <summary>
-    /// 可存档的 Store 基类,走底层的GF.Save流程
+    /// 可存档的 Store 基类，走底层的 GF.Save 流程。
+    /// 实现 IAsyncLoadable，GameContext 初始化时通过 LoadAsync 加载存档。
     /// </summary>
-    public abstract class SavableStoreBase<TData> : StoreBase<TData>
+    public abstract class SavableStoreBase<TData> : StoreBase<TData>, IAsyncLoadable
         where TData : class, ISaveData, new()
     {
-        /// <summary>
-        /// 存储键
-        /// </summary>
         protected abstract string SaveKey { get; }
 
-        /// <summary>
-        /// 从 GF.Save 加载数据，不存在时返回新实例
-        /// </summary>
-        protected override async UniTask<TData> LoadDataAsync()
+        public async UniTask LoadAsync()
         {
-            return await GF.Save.LoadAndRegisterAsync<TData>(SaveKey);
+            Data = await GF.Save.LoadAndRegisterAsync<TData>(SaveKey);
+            OnDataLoaded();
         }
 
-        /// <summary>
-        /// 标记数据为脏
-        /// </summary>
         protected void MarkDirty()
         {
             GF.Save.MarkDirty(SaveKey);

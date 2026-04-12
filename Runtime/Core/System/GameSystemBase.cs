@@ -1,5 +1,3 @@
-using Cysharp.Threading.Tasks;
-
 namespace JulyArch
 {
     public abstract class GameSystemBase : IGameSystem, ICanQuery, ICanGetSystem, ICanExecute, ICanGetStore
@@ -15,7 +13,7 @@ namespace JulyArch
 
         public virtual void OnLateUpdate(float deltaTime) { }
 
-        public virtual UniTask OnShutdown() => UniTask.CompletedTask;
+        public virtual void OnShutdown() { }
 
         public virtual void Dispose() { }
 
