@@ -8,10 +8,10 @@ namespace JulyArch
         public static T GetSystem<T>(this ICanGetSystem self) where T : class, IGameSystem
             => GameContext.Instance.GetSystem<T>();
 
-        public static CommandResult Execute<T>(this ICanExecute self, T command) where T : ICommand
-            => GameContext.Instance.Execute(command);
+        public static MutationResult Mutate<T>(this ICanMutate self, T mutation) where T : IMutation
+            => GameContext.Instance.Mutate(mutation);
 
         internal static T GetStore<T>(this ICanGetStore self) where T : class, IStore
-            => GameContext.CommandContext.GetStore<T>();
+            => GameContext.MutationContext.GetStore<T>();
     }
 }

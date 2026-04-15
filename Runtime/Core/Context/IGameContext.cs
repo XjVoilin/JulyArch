@@ -16,19 +16,19 @@
         T GetSystem<T>() where T : class, IGameSystem;
 
         /// <summary>
-        /// 执行命令（同步）
+        /// 执行 Mutation（同步）
         /// </summary>
-        CommandResult Execute<TCommand>(TCommand command) where TCommand : ICommand;
+        MutationResult Mutate<TMutation>(TMutation mutation) where TMutation : IMutation;
     }
 
     /// <summary>
-    /// Command专用,提供Store的Get,使其能操作数据,具备数据的完整权限
+    /// Mutation 专用,提供 Store 的 Get,使其能操作数据,具备数据的完整权限
     /// </summary>
-    public interface ICommandContext : IGameContext
+    public interface IMutationContext : IGameContext
     {
         /// <summary>
         /// 获取具体 Store 实例（完整访问权）
-        /// 仅供 Command 在执行数据变更时使用
+        /// 仅供 Mutation 在执行数据变更时使用
         /// </summary>
         T GetStore<T>() where T : class, IStore;
     }

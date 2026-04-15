@@ -7,7 +7,7 @@ namespace JulyArch
     /// 场景级 View 基类
     /// 所有需要接入架构的场景 MonoBehaviour（场景表现、场景初始化等）应继承此类
     /// </summary>
-    public abstract class GameView : MonoBehaviour, ICanQuery, ICanGetSystem, ICanExecute
+    public abstract class GameView : MonoBehaviour, ICanQuery, ICanGetSystem, ICanMutate
     {
         protected virtual void OnEnable()
         {
@@ -32,8 +32,8 @@ namespace JulyArch
         protected T GetSystem<T>() where T : class, IGameSystem
             => ArchExtensions.GetSystem<T>(this);
 
-        protected CommandResult Execute<TCommand>(TCommand command) where TCommand : ICommand
-            => ArchExtensions.Execute(this, command);
+        protected MutationResult Mutate<TMutation>(TMutation mutation) where TMutation : IMutation
+            => ArchExtensions.Mutate(this, mutation);
 
         #endregion
     }

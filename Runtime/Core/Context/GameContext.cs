@@ -8,9 +8,9 @@ namespace JulyArch
 {
     /// <summary>
     /// 游戏上下文 — 上层架构的统一协调中心
-    /// 管理 Store 注册与生命周期、System 注册与帧驱动、Command 分派
+    /// 管理 Store 注册与生命周期、System 注册与帧驱动、Mutation 分派
     /// </summary>
-    public sealed class GameContext : ICommandContext
+    public sealed class GameContext : IMutationContext
     {
         #region 静态
 
@@ -27,9 +27,9 @@ namespace JulyArch
         }
         
         /// <summary>
-        /// 框架内部用：提供 ICommandContext 访问（供 ArchExtensions.GetStore 调用）
+        /// 框架内部用：提供 IMutationContext 访问（供 ArchExtensions.GetStore 调用）
         /// </summary>
-        internal static ICommandContext CommandContext => _instance;
+        internal static IMutationContext MutationContext => _instance;
 
         public static GameContext Create()
         {
@@ -63,7 +63,7 @@ namespace JulyArch
         /// <summary>
         /// 仅 Debug / Editor 可用，绕过架构访问控制
         /// </summary>
-        public static ICommandContext DebugContext => _instance;
+        public static IMutationContext DebugContext => _instance;
 #endif
 
         #endregion
@@ -193,7 +193,7 @@ namespace JulyArch
             }
         }
 
-        #region ICommandContext / IGameContext
+        #region IMutationContext / IGameContext
 
         public T Query<T>() where T : class, IStoreQueries
         {
@@ -222,16 +222,16 @@ namespace JulyArch
             return null;
         }
 
-        public CommandResult Execute<TCommand>(TCommand command) where TCommand : ICommand
+        public MutationResult Mutate<TMutation>(TMutation mutation) where TMutation : IMutation
         {
             try
             {
-                return command.Execute(this);
+                return mutation.Execute(this);
             }
             catch (Exception ex)
             {
                 GF.LogException(ex);
-                return CommandResult.Fail($"Command execution failed: {ex.Message}");
+                return MutationResult.Fail($"Mutation execution failed: {ex.Message}");
             }
         }
 

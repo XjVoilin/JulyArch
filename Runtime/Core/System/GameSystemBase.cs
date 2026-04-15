@@ -1,6 +1,6 @@
 namespace JulyArch
 {
-    public abstract class GameSystemBase : IGameSystem, ICanQuery, ICanGetSystem, ICanExecute, ICanGetStore
+    public abstract class GameSystemBase : IGameSystem, ICanQuery, ICanGetSystem, ICanMutate, ICanGetStore
     {
         void IGameSystem.OnInit()
         {
@@ -27,8 +27,8 @@ namespace JulyArch
         protected T GetSystem<T>() where T : class, IGameSystem
             => ArchExtensions.GetSystem<T>(this);
 
-        protected CommandResult Execute<TCommand>(TCommand command) where TCommand : ICommand
-            => ArchExtensions.Execute(this, command);
+        protected MutationResult Mutate<TMutation>(TMutation mutation) where TMutation : IMutation
+            => ArchExtensions.Mutate(this, mutation);
 
         protected T GetStore<T>() where T : class, IStore
             => ArchExtensions.GetStore<T>(this);
