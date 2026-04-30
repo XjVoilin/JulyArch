@@ -3,8 +3,8 @@ using Cysharp.Threading.Tasks;
 namespace JulyArch
 {
     /// <summary>
-    /// 可存档的 Store 基类，走 ArchServices.Save 流程。
-    /// 实现 IAsyncLoadable，GameContext 初始化时通过 LoadAsync 加载存档。
+    /// 需要持久化的 Store 基类，走 ArchServices.Save 流程。
+    /// 不需要持久化的 Store 直接继承 <see cref="StoreBase{TData}"/> 即可。
     /// </summary>
     public abstract class SavableStoreBase<TData> : StoreBase<TData>, IAsyncLoadable
         where TData : class, IArchSaveData, new()

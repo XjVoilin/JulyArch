@@ -1,8 +1,9 @@
 ﻿namespace JulyArch
 {
     /// <summary>
-    /// Store 是可存储数据（服务器同步 / 本地持久化）的唯一所有者。
-    /// Store 不持有运行时瞬时状态（瞬时状态由 System 管理），不参与帧更新。
+    /// Store 是所有业务数据的唯一所有者（无论持久化还是瞬时）。
+    /// 判断标准：只要有第二个类需要读这份数据，它就进 Store。
+    /// Store 不参与帧更新；需要持久化的 Store 继承 <see cref="SavableStoreBase{TData}"/>。
     /// </summary>
     public interface IStore
     {

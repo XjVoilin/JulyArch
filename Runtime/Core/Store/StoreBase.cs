@@ -3,8 +3,8 @@ using System;
 namespace JulyArch
 {
     /// <summary>
-    /// Store 基类 —— 可存储数据（服务器同步 / 本地持久化）的唯一所有者
-    /// 运行时瞬时状态（不需要存储的数据）由 System 管理，不放 Store
+    /// Store 基类 —— 所有业务数据的唯一所有者（无论持久化还是瞬时）。
+    /// 只要有第二个类需要读这份数据，它就进 Store；System 私有的内部数据除外。
     /// </summary>
     public abstract class StoreBase<TData> : IStore, ICanQuery where TData : class, new()
     {
