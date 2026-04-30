@@ -1,4 +1,4 @@
-﻿using JulyCore;
+﻿using System;
 using UnityEngine;
 
 namespace JulyArch
@@ -9,6 +9,8 @@ namespace JulyArch
     /// </summary>
     public abstract class GameView : MonoBehaviour, ICanQuery, ICanGetSystem, ICanMutate
     {
+        private GameContext _boundContext;
+
         protected virtual void OnEnable()
         {
             OnViewEnable();
@@ -16,13 +18,23 @@ namespace JulyArch
 
         protected virtual void OnDisable()
         {
-            GF.Event.UnsubscribeAll(this);
+            _boundContext?.Event.UnsubscribeAll(this);
+            _boundContext = null;
             OnViewDisable();
         }
 
         protected virtual void OnViewEnable() { }
 
         protected virtual void OnViewDisable() { }
+
+        /// <summary>
+        /// 订阅事件，自动绑定到当前 Active Context，OnDisable 时自动退订
+        /// </summary>
+        protected void Subscribe<T>(Action<T> handler)
+        {
+            _boundContext ??= GameContext.Active;
+            _boundContext?.Event.Subscribe<T>(handler, this);
+        }
 
         #region 快捷方法（委托给 ArchExtensions）
 

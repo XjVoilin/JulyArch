@@ -1,6 +1,4 @@
 using System;
-using JulyCore;
-using JulyCore.Core;
 
 namespace JulyArch
 {
@@ -48,8 +46,8 @@ namespace JulyArch
         protected T Query<T>() where T : class, IStoreQueries
             => ArchExtensions.Query<T>(this);
 
-        protected void PublishEvent<T>(T eventData) where T : IEvent
-            => GF.Event.Publish(eventData);
+        protected void PublishEvent<T>(T eventData)
+            => GameContext.Publish(eventData);
 
         #endregion
 

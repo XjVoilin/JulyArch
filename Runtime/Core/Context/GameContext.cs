@@ -2,68 +2,59 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
-using JulyCore;
 
 namespace JulyArch
 {
     /// <summary>
     /// 游戏上下文 — 上层架构的统一协调中心
     /// 管理 Store 注册与生命周期、System 注册与帧驱动、Mutation 分派
+    /// 支持多实例共存，通过 Activate/Deactivate 切换活跃 Context
     /// </summary>
     public sealed class GameContext : IMutationContext
     {
-        #region 静态
+        #region 静态 — Active Context
 
-        private static GameContext _instance;
+        private static GameContext _active;
 
-        internal static IGameContext Instance
+        public static GameContext Active => _active;
+
+        internal static IGameContext ActiveAsContext
         {
             get
             {
-                if (_instance == null)
-                    throw new System.InvalidOperationException("[GameContext] 实例未创建，请确保 GameEntry 已启动");
-                return _instance;
+                if (_active == null)
+                    throw new InvalidOperationException(
+                        "[GameContext] 无活跃实例，请确保已调用 Activate()");
+                return _active;
             }
         }
-        
-        /// <summary>
-        /// 框架内部用：提供 IMutationContext 访问（供 ArchExtensions.GetStore 调用）
-        /// </summary>
-        internal static IMutationContext MutationContext => _instance;
 
-        public static GameContext Create()
+        internal static IMutationContext ActiveAsMutationContext => _active;
+
+        public void Activate() => _active = this;
+
+        public void Deactivate()
         {
-            if (_instance != null)
-            {
-                GF.LogWarning("[GameContext] 实例已存在，先销毁旧实例");
-                _instance.Shutdown();
-            }
-
-            _instance = new GameContext();
-            return _instance;
+            if (_active == this) _active = null;
         }
 
-        public static void Destroy()
-        {
-            _instance?.Shutdown();
-            _instance = null;
-        }
+        #region 静态事件快捷方法（转发到 Active Context 的 EventBus）
 
-        /// <summary>
-        /// 帧驱动（供 GameEntry.Update 调用）
-        /// </summary>
-        public static void Tick(float deltaTime) => _instance?.Update(deltaTime);
+        public static void Publish<T>(T eventData) => _active?.Event.Publish(eventData);
 
-        /// <summary>
-        /// 帧驱动（供 GameEntry.LateUpdate 调用）
-        /// </summary>
-        public static void LateTick(float deltaTime) => _instance?.LateUpdate(deltaTime);
+        public static void Subscribe<T>(Action<T> handler, object owner)
+            => _active?.Event.Subscribe(handler, owner);
+
+        public static void Unsubscribe<T>(Action<T> handler)
+            => _active?.Event.Unsubscribe(handler);
+
+        public static void UnsubscribeAll(object owner)
+            => _active?.Event.UnsubscribeAll(owner);
+
+        #endregion
 
 #if JULYGF_DEBUG || UNITY_EDITOR
-        /// <summary>
-        /// 仅 Debug / Editor 可用，绕过架构访问控制
-        /// </summary>
-        public static IMutationContext DebugContext => _instance;
+        public static IMutationContext DebugContext => _active;
 #endif
 
         #endregion
@@ -77,11 +68,19 @@ namespace JulyArch
 
         private bool _initialized;
 
+        public IEventBus Event { get; }
+
+        public GameContext()
+        {
+            Event = new EventBus();
+        }
+
         public void RegisterStore(IStore store)
         {
             if (_initialized)
             {
-                GF.LogError($"[GameContext] 初始化后不允许注册 Store: {store?.GetType().Name}");
+                ArchServices.Logger.LogError(
+                    $"[GameContext] 初始化后不允许注册 Store: {store?.GetType().Name}");
                 return;
             }
 
@@ -90,7 +89,8 @@ namespace JulyArch
             var type = store.GetType();
             if (!_stores.TryAdd(type, store))
             {
-                GF.LogWarning($"[GameContext] Store {type.Name} 已注册，跳过");
+                ArchServices.Logger.LogWarning(
+                    $"[GameContext] Store {type.Name} 已注册，跳过");
                 return;
             }
 
@@ -107,7 +107,8 @@ namespace JulyArch
         {
             if (_initialized)
             {
-                GF.LogError($"[GameContext] 初始化后不允许注册 System: {system?.GetType().Name}");
+                ArchServices.Logger.LogError(
+                    $"[GameContext] 初始化后不允许注册 System: {system?.GetType().Name}");
                 return;
             }
 
@@ -116,7 +117,8 @@ namespace JulyArch
             var type = system.GetType();
             if (!_systemLookup.TryAdd(type, system))
             {
-                GF.LogWarning($"[GameContext] System {type.Name} 已注册，跳过");
+                ArchServices.Logger.LogWarning(
+                    $"[GameContext] System {type.Name} 已注册，跳过");
                 return;
             }
 
@@ -132,13 +134,12 @@ namespace JulyArch
 
         /// <summary>
         /// 初始化：Store.Initialize → Load/LoadAsync → OnReady → System.OnInit → OnStart → GameReadyEvent
-        /// 同步 Store 立即 Load，异步 Store（IAsyncLoadable）并行 WhenAll，全部就绪后统一 OnReady
         /// </summary>
         public async UniTask InitializeAsync(CancellationToken ct = default)
         {
             if (_initialized)
             {
-                GF.LogWarning("[GameContext] 已经初始化，跳过");
+                ArchServices.Logger.LogWarning("[GameContext] 已经初始化，跳过");
                 return;
             }
 
@@ -168,7 +169,7 @@ namespace JulyArch
                 system.OnStart();
 
             _initialized = true;
-            GF.Event.Publish(new GameReadyEvent());
+            Event.Publish(new GameReadyEvent());
         }
 
         public void Update(float deltaTime)
@@ -178,7 +179,7 @@ namespace JulyArch
             for (var i = 0; i < _systems.Count; i++)
             {
                 try { _systems[i].OnUpdate(deltaTime); }
-                catch (Exception ex) { GF.LogException(ex); }
+                catch (Exception ex) { ArchServices.Logger.LogException(ex); }
             }
         }
 
@@ -189,7 +190,7 @@ namespace JulyArch
             for (int i = 0; i < _systems.Count; i++)
             {
                 try { _systems[i].OnLateUpdate(deltaTime); }
-                catch (Exception ex) { GF.LogException(ex); }
+                catch (Exception ex) { ArchServices.Logger.LogException(ex); }
             }
         }
 
@@ -200,7 +201,7 @@ namespace JulyArch
             if (_storeQueryRegistry.TryGetValue(typeof(T), out var store))
                 return store as T;
 
-            GF.LogError($"[GameContext] Query<{typeof(T).Name}> 未注册");
+            ArchServices.Logger.LogError($"[GameContext] Query<{typeof(T).Name}> 未注册");
             return null;
         }
 
@@ -209,7 +210,7 @@ namespace JulyArch
             if (_stores.TryGetValue(typeof(T), out var store))
                 return (T)store;
 
-            GF.LogError($"[GameContext] GetStore<{typeof(T).Name}> 未注册");
+            ArchServices.Logger.LogError($"[GameContext] GetStore<{typeof(T).Name}> 未注册");
             return null;
         }
 
@@ -218,7 +219,7 @@ namespace JulyArch
             if (_systemLookup.TryGetValue(typeof(T), out var system))
                 return (T)system;
 
-            GF.LogError($"[GameContext] GetSystem<{typeof(T).Name}> 未注册");
+            ArchServices.Logger.LogError($"[GameContext] GetSystem<{typeof(T).Name}> 未注册");
             return null;
         }
 
@@ -230,41 +231,38 @@ namespace JulyArch
             }
             catch (Exception ex)
             {
-                GF.LogException(ex);
+                ArchServices.Logger.LogException(ex);
                 return MutationResult.Fail($"Mutation execution failed: {ex.Message}");
             }
         }
 
         #endregion
 
-        private void Shutdown()
+        public void Shutdown()
         {
             if (!_initialized) return;
 
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
                 try { _systems[i].OnShutdown(); }
-                catch (Exception ex) { GF.LogException(ex); }
+                catch (Exception ex) { ArchServices.Logger.LogException(ex); }
             }
 
             ShutdownDispose();
         }
 
-        /// <summary>
-        /// Dispose System → Shutdown Store → 清理
-        /// </summary>
         private void ShutdownDispose()
         {
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
                 try { _systems[i].Dispose(); }
-                catch (Exception ex) { GF.LogException(ex); }
+                catch (Exception ex) { ArchServices.Logger.LogException(ex); }
             }
 
             for (var i = _storeList.Count - 1; i >= 0; i--)
             {
                 try { _storeList[i].Shutdown(); }
-                catch (Exception ex) { GF.LogException(ex); }
+                catch (Exception ex) { ArchServices.Logger.LogException(ex); }
             }
 
             _stores.Clear();
@@ -273,6 +271,9 @@ namespace JulyArch
             _systems.Clear();
             _systemLookup.Clear();
             _initialized = false;
+
+            Event.Dispose();
+            Deactivate();
         }
     }
 }
