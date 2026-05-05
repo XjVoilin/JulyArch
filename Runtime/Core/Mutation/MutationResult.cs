@@ -5,34 +5,25 @@
     /// </summary>
     public readonly struct MutationResult
     {
-        /// <summary>
-        /// 是否成功
-        /// </summary>
         public bool IsSuccess { get; }
-
-        /// <summary>消息（失败原因或成功提示）</summary>
+        public int ErrorCode { get; }
         public string Message { get; }
 
-        private MutationResult(bool isSuccess, string message)
+        private MutationResult(bool isSuccess, int errorCode, string message)
         {
             IsSuccess = isSuccess;
+            ErrorCode = errorCode;
             Message = message;
         }
 
-        /// <summary>
-        /// 创建成功结果
-        /// </summary>
         public static MutationResult Success(string message = null)
         {
-            return new MutationResult(true, message);
+            return new MutationResult(true, 0, message);
         }
 
-        /// <summary>
-        /// 创建失败结果
-        /// </summary>
-        public static MutationResult Fail(string message)
+        public static MutationResult Fail(string message, int errorCode = 0)
         {
-            return new MutationResult(false, message);
+            return new MutationResult(false, errorCode, message);
         }
     }
 }

@@ -4,14 +4,18 @@ namespace JulyArch
 {
     /// <summary>
     /// 游戏系统接口
-    /// 生命周期：OnInit → OnStart → OnUpdate/OnLateUpdate → OnShutdown → Dispose
+    /// 生命周期：OnInit → OnStart → OnShutdown → Dispose
+    /// 需要帧更新的 System 额外实现 IUpdatableSystem
     /// </summary>
-    public interface IGameSystem : IDisposable
+    public interface IGameSystem : IDisposable, IArchitectureSettable
     {
         void OnInit();
         void OnStart();
-        void OnUpdate(float deltaTime);
-        void OnLateUpdate(float deltaTime);
         void OnShutdown();
+    }
+
+    public interface IUpdatableSystem
+    {
+        void OnUpdate(float deltaTime);
     }
 }

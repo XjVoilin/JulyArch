@@ -1,11 +1,85 @@
 using System;
 using System.Collections.Generic;
+using Debug = UnityEngine.Debug;
 
 namespace JulyArch
 {
     internal sealed class EventBus : IEventBus
     {
-        private readonly Dictionary<Type, Delegate> _handlers = new();
+        private interface IHandlerList
+        {
+            void Remove(Delegate handler);
+            bool IsEmpty { get; }
+        }
+
+        private sealed class HandlerList<T> : IHandlerList
+        {
+            private readonly List<Action<T>> _list = new();
+            private int _activeCount;
+            private int _publishDepth;
+            private bool _dirty;
+
+            public bool Add(Action<T> handler)
+            {
+                if (_list.Contains(handler)) return false;
+                _list.Add(handler);
+                _activeCount++;
+                return true;
+            }
+
+            public void Remove(Delegate handler)
+            {
+                var idx = _list.IndexOf((Action<T>)handler);
+                if (idx < 0) return;
+                _activeCount--;
+
+                if (_publishDepth > 0)
+                {
+                    _list[idx] = null;
+                    _dirty = true;
+                }
+                else
+                {
+                    _list.RemoveAt(idx);
+                }
+            }
+
+            public bool IsEmpty => _activeCount <= 0;
+
+            public void Publish(T eventData)
+            {
+                _publishDepth++;
+                try
+                {
+                    var count = _list.Count;
+                    for (var i = 0; i < count; i++)
+                    {
+                        var h = _list[i];
+                        if (h == null) continue;
+                        try
+                        {
+                            h.Invoke(eventData);
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogError(
+                                $"[EventBus] Publish<{typeof(T).Name}> subscriber threw: {e}");
+                        }
+                    }
+                }
+                finally
+                {
+                    _publishDepth--;
+                    if (_publishDepth == 0 && _dirty)
+                    {
+                        _list.RemoveAll(static h => h == null);
+                        _dirty = false;
+                    }
+                }
+            }
+        }
+
+        private readonly Dictionary<Type, IHandlerList> _handlers = new();
         private readonly Dictionary<object, List<(Type type, Delegate handler)>> _ownerMap = new();
         private bool _disposed;
 
@@ -14,17 +88,22 @@ namespace JulyArch
             if (_disposed) return;
 
             var type = typeof(T);
-            _handlers[type] = _handlers.TryGetValue(type, out var existing)
-                ? Delegate.Combine(existing, handler)
-                : handler;
-
-            if (!_ownerMap.TryGetValue(owner, out var list))
+            if (!_handlers.TryGetValue(type, out var list))
             {
-                list = new List<(Type, Delegate)>();
-                _ownerMap[owner] = list;
+                var typed = new HandlerList<T>();
+                _handlers[type] = typed;
+                list = typed;
             }
 
-            list.Add((type, handler));
+            if (!((HandlerList<T>)list).Add(handler)) return;
+
+            if (!_ownerMap.TryGetValue(owner, out var ownerList))
+            {
+                ownerList = new List<(Type, Delegate)>();
+                _ownerMap[owner] = ownerList;
+            }
+
+            ownerList.Add((type, handler));
         }
 
         public void Unsubscribe<T>(Action<T> handler)
@@ -32,30 +111,43 @@ namespace JulyArch
             if (_disposed) return;
 
             var type = typeof(T);
-            if (_handlers.TryGetValue(type, out var existing))
+            if (_handlers.TryGetValue(type, out var list))
             {
-                var result = Delegate.Remove(existing, handler);
-                if (result == null)
+                list.Remove(handler);
+                if (list.IsEmpty)
                     _handlers.Remove(type);
-                else
-                    _handlers[type] = result;
+            }
+
+            RemoveFromOwnerMap(type, handler);
+        }
+
+        private void RemoveFromOwnerMap(Type eventType, Delegate handler)
+        {
+            foreach (var ownerList in _ownerMap.Values)
+            {
+                for (int i = ownerList.Count - 1; i >= 0; i--)
+                {
+                    if (ownerList[i].type == eventType && ownerList[i].handler == handler)
+                    {
+                        ownerList.RemoveAt(i);
+                        return;
+                    }
+                }
             }
         }
 
         public void UnsubscribeAll(object owner)
         {
             if (_disposed) return;
-            if (!_ownerMap.TryGetValue(owner, out var list)) return;
+            if (!_ownerMap.TryGetValue(owner, out var ownerList)) return;
 
-            foreach (var (type, handler) in list)
+            foreach (var (type, handler) in ownerList)
             {
-                if (_handlers.TryGetValue(type, out var existing))
+                if (_handlers.TryGetValue(type, out var list))
                 {
-                    var result = Delegate.Remove(existing, handler);
-                    if (result == null)
+                    list.Remove(handler);
+                    if (list.IsEmpty)
                         _handlers.Remove(type);
-                    else
-                        _handlers[type] = result;
                 }
             }
 
@@ -65,21 +157,10 @@ namespace JulyArch
         public void Publish<T>(T eventData)
         {
             if (_disposed) return;
-            if (!_handlers.TryGetValue(typeof(T), out var d) || d is not Action<T> combined)
+            if (!_handlers.TryGetValue(typeof(T), out var list))
                 return;
 
-            foreach (var handler in combined.GetInvocationList())
-            {
-                try
-                {
-                    ((Action<T>)handler).Invoke(eventData);
-                }
-                catch (Exception e)
-                {
-                    ArchServices.Logger.LogError(
-                        $"[EventBus] Publish<{typeof(T).Name}> subscriber threw: {e}");
-                }
-            }
+            ((HandlerList<T>)list).Publish(eventData);
         }
 
         public void Dispose()
