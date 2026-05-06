@@ -1,6 +1,6 @@
 {
   "name": "com.july.arch",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "displayName": "JulyArch",
   "description": "游戏上层种子框架",
   "unity": "2021.3",
