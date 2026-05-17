@@ -15,11 +15,8 @@ namespace JulyArch
         public static T GetSystem<T>(this IArchNode self) where T : class, IGameSystem
             => self.GetArchitecture().GetSystem<T>();
 
-        public static MutationResult Mutate<T>(this IArchNode self, T mutation) where T : IMutation
-            => self.GetArchitecture().Mutate(mutation);
-
-        public static MutationResult Mutate<TStore>(this IArchNode self, Action<TStore> mutation) where TStore : class, IStore
-            => self.GetArchitecture().Mutate(mutation);
+        internal static T GetStore<T>(this IArchNode self) where T : class, IStore
+            => self.GetArchitecture().GetStore<T>();
 
         public static void Subscribe<T>(this IArchNode self, Action<T> handler)
             => self.GetArchitecture().Event.Subscribe(handler, self);

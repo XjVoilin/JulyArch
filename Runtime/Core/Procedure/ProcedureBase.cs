@@ -11,6 +11,9 @@ namespace JulyArch
 
         void IArchitectureSettable.SetArchitecture(IGameContext ctx) => _architecture = ctx;
 
+        protected T GetStore<T>() where T : class, IStore
+            => GetArchitecture().GetStore<T>();
+
         public abstract UniTask ExecuteAsync(CancellationToken ct);
     }
 }

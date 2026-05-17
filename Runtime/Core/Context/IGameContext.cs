@@ -1,12 +1,10 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using Cysharp.Threading.Tasks;
 
 namespace JulyArch
 {
     /// <summary>
-    /// 游戏上下文的消费者接口 —— View / Lifecycle / 外部代码通过此接口与架构交互。
-    /// 不暴露 GetStore，防止绕过 Mutation 直接写 Store。
+    /// 游戏上下文的消费者接口 —— View / System / Procedure / 外部代码通过此接口与架构交互。
     /// </summary>
     public interface IGameContext
     {
@@ -26,14 +24,11 @@ namespace JulyArch
         T GetSystem<T>() where T : class, IGameSystem;
 
         /// <summary>
-        /// 执行 Mutation（同步）
+        /// 获取具体 Store 实例（完整读写权限）。
+        /// 游戏侧通过 GameSystemBase / ProcedureBase 的 protected 方法访问，
+        /// View 和外部代码不应直接调用。
         /// </summary>
-        MutationResult Mutate<TMutation>(TMutation mutation) where TMutation : IMutation;
-
-        /// <summary>
-        /// 执行 lambda Mutation（同步，单 Store）
-        /// </summary>
-        MutationResult Mutate<TStore>(Action<TStore> mutation) where TStore : class, IStore;
+        T GetStore<T>() where T : class, IStore;
 
         /// <summary>
         /// 事件总线
@@ -55,18 +50,5 @@ namespace JulyArch
         /// Procedure 由调用方 new 实例，框架负责 SetArchitecture + 调度 ExecuteAsync。
         /// </summary>
         UniTask RunProcedure(IProcedure procedure, CancellationToken ct = default);
-    }
-
-    /// <summary>
-    /// Mutation 专用上下文 —— 提供 GetStore 以获取 Store 完整访问权。
-    /// 仅在 Mutation.Execute 内由框架传入。
-    /// </summary>
-    public interface IMutationContext : IGameContext
-    {
-        /// <summary>
-        /// 获取具体 Store 实例（完整访问权）
-        /// 仅供 Mutation 在执行数据变更时使用
-        /// </summary>
-        T GetStore<T>() where T : class, IStore;
     }
 }

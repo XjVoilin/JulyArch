@@ -8,6 +8,9 @@ namespace JulyArch
 
         void IArchitectureSettable.SetArchitecture(IGameContext ctx) => _architecture = ctx;
 
+        protected T GetStore<T>() where T : class, IStore
+            => GetArchitecture().GetStore<T>();
+
         void IGameSystem.OnInit() => OnInitialize();
 
         public virtual void OnStart() { }

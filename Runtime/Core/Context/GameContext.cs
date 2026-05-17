@@ -8,10 +8,10 @@ namespace JulyArch
 {
     /// <summary>
     /// 游戏上下文 — 上层架构的统一协调中心
-    /// 管理 Store 注册与生命周期、System 注册与帧驱动、Mutation 分派
+    /// 管理 Store 注册与生命周期、System 注册与帧驱动
     /// 支持多实例共存，每个 Store/System 通过 SetArchitecture 绑定到所属 Context
     /// </summary>
-    public sealed class GameContext : IMutationContext
+    public sealed class GameContext : IGameContext
     {
         private readonly Dictionary<Type, IStore> _stores = new();
         private readonly Dictionary<Type, IStore> _storeQueryRegistry = new();
@@ -141,7 +141,7 @@ namespace JulyArch
             }
         }
 
-        #region IMutationContext / IGameContext
+        #region IGameContext
 
         public T Query<T>() where T : class, IStoreQueries
         {
@@ -164,9 +164,7 @@ namespace JulyArch
             return false;
         }
 
-        T IMutationContext.GetStore<T>() => GetStoreInternal<T>();
-
-        internal T GetStoreInternal<T>() where T : class, IStore
+        public T GetStore<T>() where T : class, IStore
         {
             if (_stores.TryGetValue(typeof(T), out var store))
                 return (T)store;
@@ -182,35 +180,6 @@ namespace JulyArch
 
             Debug.LogError($"[GameContext] GetSystem<{typeof(T).Name}> 未注册");
             return null;
-        }
-
-        public MutationResult Mutate<TMutation>(TMutation mutation) where TMutation : IMutation
-        {
-            try
-            {
-                return mutation.Execute(this);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-                return MutationResult.Fail($"Mutation execution failed: {ex.Message}");
-            }
-        }
-
-        public MutationResult Mutate<TStore>(Action<TStore> mutation) where TStore : class, IStore
-        {
-            if (mutation == null) throw new ArgumentNullException(nameof(mutation));
-            try
-            {
-                var store = GetStoreInternal<TStore>();
-                mutation(store);
-                return MutationResult.Success();
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-                return MutationResult.Fail($"Lambda mutation on {typeof(TStore).Name} failed: {ex.Message}");
-            }
         }
 
         #endregion
