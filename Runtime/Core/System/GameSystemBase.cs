@@ -1,24 +1,41 @@
+using System;
+using System.Threading;
+using Cysharp.Threading.Tasks;
+
 namespace JulyArch
 {
-    public abstract class GameSystemBase : IGameSystem, IArchNode
+    public abstract class GameSystemBase : ICanGetStore, ICanEvent, ICanGetSystem, ICanRunProcedure
     {
         private IGameContext _architecture;
 
         public IGameContext GetArchitecture() => _architecture;
 
-        void IArchitectureSettable.SetArchitecture(IGameContext ctx) => _architecture = ctx;
+        internal void SetArchitecture(IGameContext ctx) => _architecture = ctx;
 
-        protected T GetStore<T>() where T : class, IStore
-            => GetArchitecture().GetStore<T>();
-
-        void IGameSystem.OnInit() => OnInitialize();
-
-        public virtual void OnStart() { }
-
-        public virtual void OnShutdown() { }
-
-        public virtual void Dispose() { }
+        internal void Initialize() => OnInitialize();
+        internal void Start() => OnStart();
+        internal void Shutdown() => OnShutdown();
 
         protected virtual void OnInitialize() { }
+        protected virtual void OnStart() { }
+        protected virtual void OnShutdown() { }
+
+        protected T GetStore<T>() where T : StoreBase
+            => _architecture.GetStore<T>();
+
+        protected void Subscribe<T>(Action<T> handler)
+            => _architecture.Event.Subscribe(handler, this);
+
+        protected void Unsubscribe<T>(Action<T> handler)
+            => _architecture.Event.Unsubscribe(handler);
+
+        protected void Publish<T>(T eventData)
+            => _architecture.Event.Publish(eventData);
+
+        protected T GetSystem<T>() where T : GameSystemBase
+            => _architecture.GetSystem<T>();
+
+        protected UniTask RunProcedure(ProcedureBase procedure, CancellationToken ct = default)
+            => _architecture.RunProcedure(procedure, ct);
     }
 }

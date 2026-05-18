@@ -4,51 +4,14 @@ using Cysharp.Threading.Tasks;
 namespace JulyArch
 {
     /// <summary>
-    /// 游戏上下文的消费者接口 —— View / System / Procedure / 外部代码通过此接口与架构交互。
+    /// 游戏上下文的消费者接口 — View / System / Procedure / 外部代码通过此接口与架构交互。
+    /// 注册和生命周期管理不在此接口，由 GameContext 具体类直接提供。
     /// </summary>
     public interface IGameContext
     {
-        /// <summary>
-        /// 获取 Store 的只读查询接口（未注册时 LogError + 返回 null）
-        /// </summary>
-        T Query<T>() where T : class, IStoreQueries;
-
-        /// <summary>
-        /// 尝试获取 Store 的只读查询接口（未注册时静默返回 false）
-        /// </summary>
-        bool TryQuery<T>(out T result) where T : class, IStoreQueries;
-
-        /// <summary>
-        /// 获取 System 实例
-        /// </summary>
-        T GetSystem<T>() where T : class, IGameSystem;
-
-        /// <summary>
-        /// 获取具体 Store 实例（完整读写权限）。
-        /// 游戏侧通过 GameSystemBase / ProcedureBase 的 protected 方法访问，
-        /// View 和外部代码不应直接调用。
-        /// </summary>
-        T GetStore<T>() where T : class, IStore;
-
-        /// <summary>
-        /// 事件总线
-        /// </summary>
+        T GetStore<T>() where T : StoreBase;
+        T GetSystem<T>() where T : GameSystemBase;
         IEventBus Event { get; }
-
-        /// <summary>
-        /// 注册 Store（仅初始化阶段可用，运行时调用会报错）
-        /// </summary>
-        void RegisterStore(IStore store);
-
-        /// <summary>
-        /// 注册 System（仅初始化阶段可用，运行时调用会报错）
-        /// </summary>
-        void RegisterSystem(IGameSystem system);
-
-        /// <summary>
-        /// 运行一个 Procedure（异步流程）。
-        /// Procedure 由调用方 new 实例，框架负责 SetArchitecture + 调度 ExecuteAsync。
-        /// </summary>
-        UniTask RunProcedure(IProcedure procedure, CancellationToken ct = default);
+        UniTask RunProcedure(ProcedureBase procedure, CancellationToken ct = default);
     }
 }

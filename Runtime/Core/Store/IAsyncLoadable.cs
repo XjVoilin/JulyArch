@@ -8,6 +8,6 @@ namespace JulyArch
     /// </summary>
     public interface IAsyncLoadable
     {
-        UniTask LoadAsync();
+        UniTask OnLoadAsync();
     }
 }

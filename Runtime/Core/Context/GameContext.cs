@@ -6,20 +6,14 @@ using UnityEngine;
 
 namespace JulyArch
 {
-    /// <summary>
-    /// 游戏上下文 — 上层架构的统一协调中心
-    /// 管理 Store 注册与生命周期、System 注册与帧驱动
-    /// 支持多实例共存，每个 Store/System 通过 SetArchitecture 绑定到所属 Context
-    /// </summary>
     public sealed class GameContext : IGameContext
     {
-        private readonly Dictionary<Type, IStore> _stores = new();
-        private readonly Dictionary<Type, IStore> _storeQueryRegistry = new();
-        private readonly List<IStore> _storeList = new();
+        private readonly Dictionary<Type, StoreBase> _stores = new();
+        private readonly List<StoreBase> _storeList = new();
 
-        private readonly List<IGameSystem> _systems = new();
+        private readonly List<GameSystemBase> _systems = new();
         private readonly List<IUpdatableSystem> _updateSystems = new();
-        private readonly Dictionary<Type, IGameSystem> _systemLookup = new();
+        private readonly Dictionary<Type, GameSystemBase> _systemLookup = new();
 
         private bool _initialized;
 
@@ -30,7 +24,7 @@ namespace JulyArch
             Event = new EventBus();
         }
 
-        public void RegisterStore(IStore store)
+        public void RegisterStore(StoreBase store)
         {
             if (_initialized)
             {
@@ -51,15 +45,9 @@ namespace JulyArch
 
             store.SetArchitecture(this);
             _storeList.Add(store);
-
-            foreach (var iface in type.GetInterfaces())
-            {
-                if (iface != typeof(IStoreQueries) && typeof(IStoreQueries).IsAssignableFrom(iface))
-                    _storeQueryRegistry[iface] = store;
-            }
         }
 
-        public void RegisterSystem(IGameSystem system)
+        public void RegisterSystem(GameSystemBase system)
         {
             if (_initialized)
             {
@@ -82,18 +70,8 @@ namespace JulyArch
             _systems.Add(system);
 
             if (system is IUpdatableSystem updatable) _updateSystems.Add(updatable);
-
-            foreach (var iface in type.GetInterfaces())
-            {
-                if (iface != typeof(IGameSystem) && iface != typeof(IDisposable)
-                    && typeof(IGameSystem).IsAssignableFrom(iface))
-                    _systemLookup.TryAdd(iface, system);
-            }
         }
 
-        /// <summary>
-        /// 初始化：Store.Load/LoadAsync → OnReady → System.OnInit → OnStart → GameReadyEvent
-        /// </summary>
         public async UniTask InitializeAsync(CancellationToken ct = default)
         {
             if (_initialized)
@@ -108,8 +86,8 @@ namespace JulyArch
             {
                 ct.ThrowIfCancellationRequested();
 
-                if (store is IAsyncLoadable asyncLoadable)
-                    asyncTasks.Add(asyncLoadable.LoadAsync());
+                if (store.IsAsyncLoadable)
+                    asyncTasks.Add(store.LoadAsync());
                 else
                     store.Load();
             }
@@ -118,13 +96,13 @@ namespace JulyArch
                 await UniTask.WhenAll(asyncTasks);
 
             foreach (var store in _storeList)
-                store.OnReady();
+                store.Ready();
 
             foreach (var system in _systems)
-                system.OnInit();
+                system.Initialize();
 
             foreach (var system in _systems)
-                system.OnStart();
+                system.Start();
 
             _initialized = true;
             Event.Publish(new GameReadyEvent());
@@ -143,28 +121,7 @@ namespace JulyArch
 
         #region IGameContext
 
-        public T Query<T>() where T : class, IStoreQueries
-        {
-            if (_storeQueryRegistry.TryGetValue(typeof(T), out var store))
-                return store as T;
-
-            Debug.LogError($"[GameContext] Query<{typeof(T).Name}> 未注册");
-            return null;
-        }
-
-        public bool TryQuery<T>(out T result) where T : class, IStoreQueries
-        {
-            if (_storeQueryRegistry.TryGetValue(typeof(T), out var store))
-            {
-                result = store as T;
-                return result != null;
-            }
-
-            result = null;
-            return false;
-        }
-
-        public T GetStore<T>() where T : class, IStore
+        public T GetStore<T>() where T : StoreBase
         {
             if (_stores.TryGetValue(typeof(T), out var store))
                 return (T)store;
@@ -173,7 +130,7 @@ namespace JulyArch
             return null;
         }
 
-        public T GetSystem<T>() where T : class, IGameSystem
+        public T GetSystem<T>() where T : GameSystemBase
         {
             if (_systemLookup.TryGetValue(typeof(T), out var system))
                 return (T)system;
@@ -184,14 +141,14 @@ namespace JulyArch
 
         #endregion
 
-        public async UniTask RunProcedure(IProcedure procedure, CancellationToken ct = default)
+        public async UniTask RunProcedure(ProcedureBase procedure, CancellationToken ct = default)
         {
             if (procedure == null) throw new ArgumentNullException(nameof(procedure));
             if (!_initialized) throw new InvalidOperationException(
                 $"[GameContext] 初始化未完成，无法运行 Procedure: {procedure.GetType().Name}");
 
             procedure.SetArchitecture(this);
-            await procedure.ExecuteAsync(ct);
+            await procedure.Execute(ct);
         }
 
         public void Shutdown()
@@ -200,18 +157,7 @@ namespace JulyArch
 
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
-                try { _systems[i].OnShutdown(); }
-                catch (Exception ex) { Debug.LogException(ex); }
-            }
-
-            ShutdownDispose();
-        }
-
-        private void ShutdownDispose()
-        {
-            for (var i = _systems.Count - 1; i >= 0; i--)
-            {
-                try { _systems[i].Dispose(); }
+                try { _systems[i].Shutdown(); }
                 catch (Exception ex) { Debug.LogException(ex); }
             }
 
@@ -223,7 +169,6 @@ namespace JulyArch
 
             _stores.Clear();
             _storeList.Clear();
-            _storeQueryRegistry.Clear();
             _systems.Clear();
             _updateSystems.Clear();
             _systemLookup.Clear();
