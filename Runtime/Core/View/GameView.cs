@@ -9,7 +9,7 @@ namespace JulyArch
     /// </summary>
     public abstract class GameView : MonoBehaviour, ICanGetStore, ICanEvent, ICanGetSystem
     {
-        public abstract IGameContext GetArchitecture();
+        public abstract IArchContext GetArchitecture();
 
         protected T GetStore<T>() where T : StoreBase
             => GetArchitecture().GetStore<T>();

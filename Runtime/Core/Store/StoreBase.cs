@@ -4,16 +4,16 @@ using Cysharp.Threading.Tasks;
 namespace JulyArch
 {
     /// <summary>
-    /// Store 非泛型基类 — 作为 GetStore 泛型约束和 GameContext 内部管理的公共类型。
-    /// 生命周期方法全部 internal，仅 GameContext 可调用。
+    /// Store 非泛型基类 — 作为 GetStore 泛型约束和 ArchContext 内部管理的公共类型。
+    /// 生命周期方法全部 internal，仅 ArchContext 可调用。
     /// </summary>
     public abstract class StoreBase : IArchNode
     {
-        private IGameContext _architecture;
+        private IArchContext _architecture;
 
-        public IGameContext GetArchitecture() => _architecture;
+        public IArchContext GetArchitecture() => _architecture;
 
-        internal void SetArchitecture(IGameContext ctx) => _architecture = ctx;
+        internal void SetArchitecture(IArchContext ctx) => _architecture = ctx;
 
         internal abstract void Load();
         internal abstract bool IsAsyncLoadable { get; }
@@ -53,7 +53,7 @@ namespace JulyArch
             if (this is IAsyncLoadable)
             {
                 throw new System.InvalidOperationException(
-                    $"[{GetType().Name}] implements IAsyncLoadable, must use LoadAsync() via GameContext");
+                    $"[{GetType().Name}] implements IAsyncLoadable, must use LoadAsync() via ArchContext");
             }
             Data = OnLoad();
         }

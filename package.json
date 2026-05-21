@@ -4,7 +4,9 @@
   "displayName": "JulyArch",
   "description": "游戏上层种子框架",
   "unity": "2021.3",
-  "dependencies": {},
+  "dependencies": {
+    "com.july.events": "1.0.0"
+  },
   "keywords": [
     "framework",
     "game",

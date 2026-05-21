@@ -2,11 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using JulyEvents;
 using UnityEngine;
 
 namespace JulyArch
 {
-    public sealed class GameContext : IGameContext
+    public sealed class ArchContext : IArchContext
     {
         private readonly Dictionary<Type, StoreBase> _stores = new();
         private readonly List<StoreBase> _storeList = new();
@@ -19,7 +20,7 @@ namespace JulyArch
 
         public IEventBus Event { get; }
 
-        public GameContext()
+        public ArchContext()
         {
             Event = new EventBus();
         }
@@ -29,7 +30,7 @@ namespace JulyArch
             if (_initialized)
             {
                 Debug.LogError(
-                    $"[GameContext] 初始化后不允许注册 Store: {store?.GetType().Name}");
+                    $"[ArchContext] 初始化后不允许注册 Store: {store?.GetType().Name}");
                 return;
             }
 
@@ -39,7 +40,7 @@ namespace JulyArch
             if (!_stores.TryAdd(type, store))
             {
                 Debug.LogWarning(
-                    $"[GameContext] Store {type.Name} 已注册，跳过");
+                    $"[ArchContext] Store {type.Name} 已注册，跳过");
                 return;
             }
 
@@ -52,7 +53,7 @@ namespace JulyArch
             if (_initialized)
             {
                 Debug.LogError(
-                    $"[GameContext] 初始化后不允许注册 System: {system?.GetType().Name}");
+                    $"[ArchContext] 初始化后不允许注册 System: {system?.GetType().Name}");
                 return;
             }
 
@@ -62,7 +63,7 @@ namespace JulyArch
             if (!_systemLookup.TryAdd(type, system))
             {
                 Debug.LogWarning(
-                    $"[GameContext] System {type.Name} 已注册，跳过");
+                    $"[ArchContext] System {type.Name} 已注册，跳过");
                 return;
             }
 
@@ -76,7 +77,7 @@ namespace JulyArch
         {
             if (_initialized)
             {
-                Debug.LogWarning("[GameContext] 已经初始化，跳过");
+                Debug.LogWarning("[ArchContext] 已经初始化，跳过");
                 return;
             }
 
@@ -119,14 +120,14 @@ namespace JulyArch
             }
         }
 
-        #region IGameContext
+        #region IArchContext
 
         public T GetStore<T>() where T : StoreBase
         {
             if (_stores.TryGetValue(typeof(T), out var store))
                 return (T)store;
 
-            Debug.LogError($"[GameContext] GetStore<{typeof(T).Name}> 未注册");
+            Debug.LogError($"[ArchContext] GetStore<{typeof(T).Name}> 未注册");
             return null;
         }
 
@@ -135,7 +136,7 @@ namespace JulyArch
             if (_systemLookup.TryGetValue(typeof(T), out var system))
                 return (T)system;
 
-            Debug.LogError($"[GameContext] GetSystem<{typeof(T).Name}> 未注册");
+            Debug.LogError($"[ArchContext] GetSystem<{typeof(T).Name}> 未注册");
             return null;
         }
 
@@ -145,7 +146,7 @@ namespace JulyArch
         {
             if (procedure == null) throw new ArgumentNullException(nameof(procedure));
             if (!_initialized) throw new InvalidOperationException(
-                $"[GameContext] 初始化未完成，无法运行 Procedure: {procedure.GetType().Name}");
+                $"[ArchContext] 初始化未完成，无法运行 Procedure: {procedure.GetType().Name}");
 
             procedure.SetArchitecture(this);
             await procedure.Execute(ct);

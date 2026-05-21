@@ -6,6 +6,6 @@ namespace JulyArch
     /// </summary>
     public interface IArchNode
     {
-        IGameContext GetArchitecture();
+        IArchContext GetArchitecture();
     }
 }

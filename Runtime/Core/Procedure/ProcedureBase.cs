@@ -9,11 +9,11 @@ namespace JulyArch
     /// </summary>
     public abstract class ProcedureBase : ICanGetStore, ICanEvent, ICanGetSystem, ICanRunProcedure
     {
-        private IGameContext _architecture;
+        private IArchContext _architecture;
 
-        public IGameContext GetArchitecture() => _architecture;
+        public IArchContext GetArchitecture() => _architecture;
 
-        internal void SetArchitecture(IGameContext ctx) => _architecture = ctx;
+        internal void SetArchitecture(IArchContext ctx) => _architecture = ctx;
 
         internal UniTask Execute(CancellationToken ct) => OnExecuteAsync(ct);
 
