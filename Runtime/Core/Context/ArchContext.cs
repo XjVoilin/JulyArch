@@ -59,12 +59,19 @@ namespace JulyArch
 
             if (system == null) throw new ArgumentNullException(nameof(system));
 
-            var type = system.GetType();
-            if (!_systemLookup.TryAdd(type, system))
+            var concreteType = system.GetType();
+            if (!_systemLookup.TryAdd(concreteType, system))
             {
                 Debug.LogWarning(
-                    $"[ArchContext] System {type.Name} 已注册，跳过");
+                    $"[ArchContext] System {concreteType.Name} 已注册，跳过");
                 return;
+            }
+
+            var baseType = concreteType.BaseType;
+            while (baseType != null && baseType != typeof(GameSystemBase))
+            {
+                _systemLookup.TryAdd(baseType, system);
+                baseType = baseType.BaseType;
             }
 
             system.SetArchitecture(this);
