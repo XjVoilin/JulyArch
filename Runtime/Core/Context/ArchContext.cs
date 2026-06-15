@@ -18,6 +18,8 @@ namespace JulyArch
 
         private bool _initialized;
 
+        public bool Initialized => _initialized;
+
         public IEventBus Event { get; }
 
         public ArchContext()
