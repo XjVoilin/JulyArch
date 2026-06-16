@@ -30,6 +30,11 @@ namespace JulyArch
         public static T GetSystem<T>(this ICanGetSystem self) where T : GameSystemBase
             => self.GetArchitecture()?.GetSystem<T>();
 
+        // ── ICanGetView ──
+
+        public static T GetView<T>(this ICanGetView self) where T : GameView
+            => self.GetArchitecture()?.GetView<T>();
+
         // ── ICanRunProcedure ──
 
         public static UniTask RunProcedure(this ICanRunProcedure self, ProcedureBase procedure, CancellationToken ct = default)

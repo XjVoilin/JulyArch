@@ -12,6 +12,13 @@ namespace JulyArch
     {
         T GetStore<T>() where T : StoreBase;
         T GetSystem<T>() where T : GameSystemBase;
+
+        /// <summary>
+        /// 按类型获取已注册的可定位 View（实现 ISingletonView 的 GameView）。
+        /// View 随场景动态注册/注销，未命中返回 null。
+        /// </summary>
+        T GetView<T>() where T : GameView;
+
         IEventBus Event { get; }
         UniTask RunProcedure(ProcedureBase procedure, CancellationToken ct = default);
     }

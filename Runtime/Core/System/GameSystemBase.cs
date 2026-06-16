@@ -4,7 +4,7 @@ using Cysharp.Threading.Tasks;
 
 namespace JulyArch
 {
-    public abstract class GameSystemBase : ICanGetStore, ICanEvent, ICanGetSystem, ICanRunProcedure
+    public abstract class GameSystemBase : ICanGetStore, ICanEvent, ICanGetSystem, ICanGetView, ICanRunProcedure
     {
         private IArchContext _architecture;
 
@@ -34,6 +34,9 @@ namespace JulyArch
 
         protected T GetSystem<T>() where T : GameSystemBase
             => _architecture.GetSystem<T>();
+
+        protected T GetView<T>() where T : GameView
+            => _architecture.GetView<T>();
 
         protected UniTask RunProcedure(ProcedureBase procedure, CancellationToken ct = default)
             => _architecture.RunProcedure(procedure, ct);

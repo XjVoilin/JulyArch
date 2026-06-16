@@ -16,6 +16,9 @@ namespace JulyArch
         private readonly List<IUpdatableSystem> _updateSystems = new();
         private readonly Dictionary<Type, GameSystemBase> _systemLookup = new();
 
+        // View 是场景绑定的瞬态角色，随场景生灭动态注册/注销，不受 _initialized 限制。
+        private readonly Dictionary<Type, GameView> _views = new();
+
         private bool _initialized;
 
         public bool Initialized => _initialized;
@@ -80,6 +83,44 @@ namespace JulyArch
             _systems.Add(system);
 
             if (system is IUpdatableSystem updatable) _updateSystems.Add(updatable);
+        }
+
+        /// <summary>
+        /// 注册可定位 View。由 GameView 基类在 Awake 中对实现 ISingletonView 的实例自动调用。
+        /// 同类型出现第二个实例 = 误标 ISingletonView 的编程错误：开发期抛异常快速失败，发布期保留先注册者并忽略。
+        /// </summary>
+        public void RegisterView(GameView view)
+        {
+            if (view == null) throw new ArgumentNullException(nameof(view));
+
+            var type = view.GetType();
+            if (_views.TryGetValue(type, out var existing) && existing != view)
+            {
+                Debug.LogError(
+                    $"[ArchContext] {type.Name} 实现了 ISingletonView 但出现多个实例，" +
+                    "多实例对象不应实现 ISingletonView。");
+#if UNITY_EDITOR || JULYGF_DEBUG
+                throw new InvalidOperationException(
+                    $"[ArchContext] Duplicate ISingletonView: {type.Name}");
+#else
+                return; // 发布期：保留先注册者，忽略后来者，不覆盖、不崩
+#endif
+            }
+
+            _views[type] = view;
+        }
+
+        /// <summary>
+        /// 注销可定位 View。由 GameView 基类在 OnDestroy 中调用。
+        /// 身份校验：仅当登记的确实是自己时才移除，避免被误标副本注销掉正主。
+        /// </summary>
+        public void UnregisterView(GameView view)
+        {
+            if (view == null) return;
+
+            var type = view.GetType();
+            if (_views.TryGetValue(type, out var existing) && existing == view)
+                _views.Remove(type);
         }
 
         public async UniTask InitializeAsync(CancellationToken ct = default)
@@ -149,6 +190,15 @@ namespace JulyArch
             return null;
         }
 
+        public T GetView<T>() where T : GameView
+        {
+            if (_views.TryGetValue(typeof(T), out var view))
+                return (T)view;
+
+            Debug.LogError($"[ArchContext] GetView<{typeof(T).Name}> 未注册（View 需实现 ISingletonView 且其 GameObject 在场景加载时处于 active 以触发 Awake 自注册）");
+            return null;
+        }
+
         #endregion
 
         public async UniTask RunProcedure(ProcedureBase procedure, CancellationToken ct = default)
@@ -182,6 +232,7 @@ namespace JulyArch
             _systems.Clear();
             _updateSystems.Clear();
             _systemLookup.Clear();
+            _views.Clear();
             _initialized = false;
 
             Event.Dispose();
