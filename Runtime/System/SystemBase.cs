@@ -4,13 +4,11 @@ using Cysharp.Threading.Tasks;
 
 namespace JulyArch
 {
-    public abstract class GameSystemBase : ICanGetStore, ICanEvent, ICanGetSystem, ICanGetView, ICanRunProcedure
+    public abstract class SystemBase : ICanGetStore, ICanEvent, ICanGetSystem, ICanGetView, ICanRunProcedure
     {
-        private IArchContext _architecture;
+        private ArchContext _architecture;
 
-        public IArchContext GetArchitecture() => _architecture;
-
-        internal void SetArchitecture(IArchContext ctx) => _architecture = ctx;
+        internal void SetContext(ArchContext ctx) => _architecture = ctx;
 
         internal void Initialize() => OnInitialize();
         internal void Start() => OnStart();
@@ -32,7 +30,7 @@ namespace JulyArch
         protected void Publish<T>(T eventData)
             => _architecture.Event.Publish(eventData);
 
-        protected T GetSystem<T>() where T : GameSystemBase
+        protected T GetSystem<T>() where T : class
             => _architecture.GetSystem<T>();
 
         protected T GetView<T>() where T : GameView

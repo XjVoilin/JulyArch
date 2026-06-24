@@ -7,14 +7,14 @@ using UnityEngine;
 
 namespace JulyArch
 {
-    public sealed class ArchContext : IArchContext
+    public sealed class ArchContext
     {
         private readonly Dictionary<Type, StoreBase> _stores = new();
         private readonly List<StoreBase> _storeList = new();
 
-        private readonly List<GameSystemBase> _systems = new();
+        private readonly List<SystemBase> _systems = new();
         private readonly List<IUpdatableSystem> _updateSystems = new();
-        private readonly Dictionary<Type, GameSystemBase> _systemLookup = new();
+        private readonly Dictionary<Type, SystemBase> _systemLookup = new();
 
         // View 是场景绑定的瞬态角色，随场景生灭动态注册/注销，不受 _initialized 限制。
         private readonly Dictionary<Type, GameView> _views = new();
@@ -25,20 +25,16 @@ namespace JulyArch
 
         public IEventBus Event { get; }
 
+        public static ArchContext Current { get; private set; }
+
         public ArchContext()
         {
             Event = new EventBus();
+            if (Current == null) Current = this;
         }
 
         public void RegisterStore(StoreBase store)
         {
-            if (_initialized)
-            {
-                Debug.LogError(
-                    $"[ArchContext] 初始化后不允许注册 Store: {store?.GetType().Name}");
-                return;
-            }
-
             if (store == null) throw new ArgumentNullException(nameof(store));
 
             var type = store.GetType();
@@ -49,19 +45,36 @@ namespace JulyArch
                 return;
             }
 
-            store.SetArchitecture(this);
+            store.SetContext(this);
             _storeList.Add(store);
-        }
 
-        public void RegisterSystem(GameSystemBase system)
-        {
             if (_initialized)
             {
-                Debug.LogError(
-                    $"[ArchContext] 初始化后不允许注册 System: {system?.GetType().Name}");
-                return;
+                if (store.IsAsyncLoadable)
+                    Debug.LogWarning($"[ArchContext] Store {type.Name} 异步 Store 在初始化后注册，仅同步 Load");
+                store.Load();
+                store.Ready();
+            }
+        }
+
+        public void UnregisterStore(StoreBase store)
+        {
+            if (store == null) return;
+            var type = store.GetType();
+            if (!_stores.TryGetValue(type, out var existing) || existing != store) return;
+
+            if (_initialized)
+            {
+                try { store.Shutdown(); }
+                catch (Exception ex) { Debug.LogException(ex); }
             }
 
+            _stores.Remove(type);
+            _storeList.Remove(store);
+        }
+
+        public void RegisterSystem(SystemBase system)
+        {
             if (system == null) throw new ArgumentNullException(nameof(system));
 
             var concreteType = system.GetType();
@@ -73,16 +86,50 @@ namespace JulyArch
             }
 
             var baseType = concreteType.BaseType;
-            while (baseType != null && baseType != typeof(GameSystemBase))
+            while (baseType != null && baseType != typeof(SystemBase))
             {
                 _systemLookup.TryAdd(baseType, system);
                 baseType = baseType.BaseType;
             }
 
-            system.SetArchitecture(this);
+            foreach (var iface in concreteType.GetInterfaces())
+            {
+                if (typeof(IArchNode).IsAssignableFrom(iface)) continue;
+                _systemLookup.TryAdd(iface, system);
+            }
+
+            system.SetContext(this);
             _systems.Add(system);
 
             if (system is IUpdatableSystem updatable) _updateSystems.Add(updatable);
+
+            if (_initialized)
+            {
+                system.Initialize();
+                system.Start();
+            }
+        }
+
+        public void UnregisterSystem(SystemBase system)
+        {
+            if (system == null) return;
+            var concreteType = system.GetType();
+            if (!_systemLookup.TryGetValue(concreteType, out var existing) || existing != system) return;
+
+            if (_initialized)
+            {
+                try { system.Shutdown(); }
+                catch (Exception ex) { Debug.LogException(ex); }
+            }
+
+            var keysToRemove = new List<Type>();
+            foreach (var kvp in _systemLookup)
+                if (kvp.Value == system) keysToRemove.Add(kvp.Key);
+            foreach (var key in keysToRemove)
+                _systemLookup.Remove(key);
+
+            _systems.Remove(system);
+            if (system is IUpdatableSystem updatable) _updateSystems.Remove(updatable);
         }
 
         /// <summary>
@@ -156,7 +203,6 @@ namespace JulyArch
                 system.Start();
 
             _initialized = true;
-            Event.Publish(new GameReadyEvent());
         }
 
         public void Update(float deltaTime)
@@ -170,7 +216,7 @@ namespace JulyArch
             }
         }
 
-        #region IArchContext
+        #region Public API
 
         public T GetStore<T>() where T : StoreBase
         {
@@ -181,10 +227,10 @@ namespace JulyArch
             return null;
         }
 
-        public T GetSystem<T>() where T : GameSystemBase
+        public T GetSystem<T>() where T : class
         {
             if (_systemLookup.TryGetValue(typeof(T), out var system))
-                return (T)system;
+                return (T)(object)system;
 
             Debug.LogError($"[ArchContext] GetSystem<{typeof(T).Name}> 未注册");
             return null;
@@ -207,7 +253,7 @@ namespace JulyArch
             if (!_initialized) throw new InvalidOperationException(
                 $"[ArchContext] 初始化未完成，无法运行 Procedure: {procedure.GetType().Name}");
 
-            procedure.SetArchitecture(this);
+            procedure.SetContext(this);
             await procedure.Execute(ct);
         }
 
@@ -236,6 +282,8 @@ namespace JulyArch
             _initialized = false;
 
             Event.Dispose();
+
+            if (Current == this) Current = null;
         }
     }
 }

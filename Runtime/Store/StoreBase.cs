@@ -7,13 +7,11 @@ namespace JulyArch
     /// Store 非泛型基类 — 作为 GetStore 泛型约束和 ArchContext 内部管理的公共类型。
     /// 生命周期方法全部 internal，仅 ArchContext 可调用。
     /// </summary>
-    public abstract class StoreBase : IArchNode
+    public abstract class StoreBase
     {
-        private IArchContext _architecture;
+        private ArchContext _architecture;
 
-        public IArchContext GetArchitecture() => _architecture;
-
-        internal void SetArchitecture(IArchContext ctx) => _architecture = ctx;
+        internal void SetContext(ArchContext ctx) => _architecture = ctx;
 
         internal abstract void Load();
         internal abstract bool IsAsyncLoadable { get; }
@@ -24,15 +22,10 @@ namespace JulyArch
         protected virtual void OnReady() { }
 
         /// <summary>
-        /// 在 Store 写方法中调用，通过 EventBus 发布 StoreModifiedEvent。
-        /// Release 下为空方法，零开销；DEBUG 下可订阅事件统一拦截所有 Store 写操作。
+        /// 预留的 Store 写操作追踪钩子。
+        /// 当前为空方法，保留签名以便未来接入 debug 追踪。
         /// </summary>
-        protected void TraceModify([CallerMemberName] string method = null)
-        {
-#if JULYGF_DEBUG
-            GetArchitecture()?.Event?.Publish(new StoreModifiedEvent(this, method));
-#endif
-        }
+        protected void TraceModify([CallerMemberName] string method = null) { }
     }
 
     /// <summary>
@@ -44,7 +37,7 @@ namespace JulyArch
         protected TData Data { get; set; }
 
         protected void Publish<T>(T eventData)
-            => GetArchitecture().Event.Publish(eventData);
+            => ArchContext.Current.Event.Publish(eventData);
 
         internal sealed override bool IsAsyncLoadable => this is IAsyncLoadable;
 
@@ -66,7 +59,6 @@ namespace JulyArch
         internal sealed override void Shutdown()
         {
             OnShutdown();
-            Data = null;
         }
 
         protected virtual TData OnLoad() => new TData();

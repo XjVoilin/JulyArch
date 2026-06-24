@@ -9,35 +9,35 @@ namespace JulyArch
         // ── ICanGetStore ──
 
         public static T GetStore<T>(this ICanGetStore self) where T : StoreBase
-            => self.GetArchitecture()?.GetStore<T>();
+            => ArchContext.Current?.GetStore<T>();
 
         // ── ICanEvent ──
 
         public static void Subscribe<T>(this ICanEvent self, Action<T> handler)
-            => self.GetArchitecture()?.Event?.Subscribe(handler, self);
+            => ArchContext.Current?.Event?.Subscribe(handler, self);
 
         public static void Unsubscribe<T>(this ICanEvent self, Action<T> handler)
-            => self.GetArchitecture()?.Event?.Unsubscribe(handler);
+            => ArchContext.Current?.Event?.Unsubscribe(handler);
 
         public static void UnsubscribeAll(this ICanEvent self)
-            => self.GetArchitecture()?.Event?.UnsubscribeAll(self);
+            => ArchContext.Current?.Event?.UnsubscribeAll(self);
 
         public static void Publish<T>(this ICanEvent self, T eventData)
-            => self.GetArchitecture()?.Event?.Publish(eventData);
+            => ArchContext.Current?.Event?.Publish(eventData);
 
         // ── ICanGetSystem ──
 
-        public static T GetSystem<T>(this ICanGetSystem self) where T : GameSystemBase
-            => self.GetArchitecture()?.GetSystem<T>();
+        public static T GetSystem<T>(this ICanGetSystem self) where T : class
+            => ArchContext.Current?.GetSystem<T>();
 
         // ── ICanGetView ──
 
         public static T GetView<T>(this ICanGetView self) where T : GameView
-            => self.GetArchitecture()?.GetView<T>();
+            => ArchContext.Current?.GetView<T>();
 
         // ── ICanRunProcedure ──
 
         public static UniTask RunProcedure(this ICanRunProcedure self, ProcedureBase procedure, CancellationToken ct = default)
-            => self.GetArchitecture()?.RunProcedure(procedure, ct) ?? UniTask.CompletedTask;
+            => ArchContext.Current?.RunProcedure(procedure, ct) ?? UniTask.CompletedTask;
     }
 }

@@ -9,11 +9,9 @@ namespace JulyArch
     /// </summary>
     public abstract class ProcedureBase : ICanGetStore, ICanEvent, ICanGetSystem, ICanGetView, ICanRunProcedure
     {
-        private IArchContext _architecture;
+        private ArchContext _architecture;
 
-        public IArchContext GetArchitecture() => _architecture;
-
-        internal void SetArchitecture(IArchContext ctx) => _architecture = ctx;
+        internal void SetContext(ArchContext ctx) => _architecture = ctx;
 
         internal UniTask Execute(CancellationToken ct) => OnExecuteAsync(ct);
 
@@ -31,7 +29,7 @@ namespace JulyArch
         protected void Publish<T>(T eventData)
             => _architecture.Event.Publish(eventData);
 
-        protected T GetSystem<T>() where T : GameSystemBase
+        protected T GetSystem<T>() where T : class
             => _architecture.GetSystem<T>();
 
         protected T GetView<T>() where T : GameView
