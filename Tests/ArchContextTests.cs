@@ -9,13 +9,12 @@ using UnityEngine.TestTools;
 namespace JulyArch.Tests
 {
     /// <summary>
-    /// ArchContext 注册 / 初始化 / Shutdown 顺序 / 动态注册 / 事件清理 的单元测试。
+    /// ArchContext 注册 / 初始化 / Shutdown 顺序 / 增量初始化 / 事件清理 的单元测试。
     /// 纯逻辑验证框架骨架，不依赖场景与资源。
     /// </summary>
     [TestFixture]
     public class ArchContextTests
     {
-        // 单调递增的逻辑时钟，用于断言生命周期先后顺序（跨 Store/System 共享）。
         private static int s_clock;
         private ArchContext _ctx;
 
@@ -54,7 +53,7 @@ namespace JulyArch.Tests
         #region 注册 + 初始化顺序
 
         [Test]
-        public void InitializeAsync_StoreLoadBeforeReady_SystemInitBeforeStart()
+        public void InitializeAsync_StoreBeforeSystem()
         {
             var store = new TestStore();
             var system = new TestSystem();
@@ -63,29 +62,65 @@ namespace JulyArch.Tests
 
             _ctx.InitializeAsync().GetAwaiter().GetResult();
 
-            Assert.IsTrue(store.LoadCalled, "Store.Load 应在初始化时被调用");
-            Assert.IsTrue(store.ReadyCalled, "Store.Ready 应在 Load 之后被调用");
-            Assert.Less(store.LoadTick, store.ReadyTick, "Ready 必须晚于 Load");
-
-            Assert.IsTrue(system.InitializeCalled, "System.Initialize 应在初始化时被调用");
-            Assert.IsTrue(system.StartCalled, "System.Start 应在 Initialize 之后被调用");
-            Assert.Less(system.InitTick, system.StartTick, "Start 必须晚于 Initialize");
-
+            Assert.IsTrue(store.InitCalled, "Store.OnInitializeAsync 应在初始化时被调用");
+            Assert.IsTrue(system.InitCalled, "System.OnInitializeAsync 应在初始化时被调用");
+            Assert.Less(store.InitTick, system.InitTick,
+                "Store 应在 System 之前初始化");
             Assert.IsTrue(_ctx.Initialized);
         }
 
         [Test]
-        public void InitializeAsync_CalledTwice_SecondIsNoop()
+        public void InitializeAsync_Idempotent_SkipsAlreadyInitialized()
         {
             var store = new TestStore();
             _ctx.RegisterStore(store);
             _ctx.InitializeAsync().GetAwaiter().GetResult();
-            store.LoadCalled = false;
 
+            var firstTick = store.InitTick;
             _ctx.InitializeAsync().GetAwaiter().GetResult();
 
-            Assert.IsFalse(store.LoadCalled, "重复初始化不应再次 Load");
+            Assert.AreEqual(firstTick, store.InitTick, "幂等：重复初始化不应再次调用 OnInitializeAsync");
             Assert.IsTrue(_ctx.Initialized);
+        }
+
+        [Test]
+        public void InitializeAsync_Incremental_InitializesNewlyRegistered()
+        {
+            var sys1 = new TestSystem();
+            _ctx.RegisterSystem(sys1);
+            _ctx.InitializeAsync().GetAwaiter().GetResult();
+
+            Assert.IsTrue(sys1.InitCalled);
+            var sys1Tick = sys1.InitTick;
+
+            var sys2 = new TestSystem2();
+            _ctx.RegisterSystem(sys2);
+            _ctx.InitializeAsync().GetAwaiter().GetResult();
+
+            Assert.AreEqual(sys1Tick, sys1.InitTick, "已初始化的 System 不应重复初始化");
+            Assert.IsTrue(sys2.InitCalled, "新注册的 System 应在第二次 InitializeAsync 时初始化");
+        }
+
+        [Test]
+        public void RegisterSystem_AfterInitialize_DoesNotAutoInit()
+        {
+            _ctx.InitializeAsync().GetAwaiter().GetResult();
+
+            var system = new TestSystem();
+            _ctx.RegisterSystem(system);
+
+            Assert.IsFalse(system.InitCalled, "Register 只注册，不自动初始化");
+        }
+
+        [Test]
+        public void RegisterStore_AfterInitialize_DoesNotAutoInit()
+        {
+            _ctx.InitializeAsync().GetAwaiter().GetResult();
+
+            var store = new TestStore();
+            _ctx.RegisterStore(store);
+
+            Assert.IsFalse(store.InitCalled, "Register 只注册，不自动初始化");
         }
 
         [Test]
@@ -114,9 +149,7 @@ namespace JulyArch.Tests
             _ctx.RegisterSystem(system);
             _ctx.InitializeAsync().GetAwaiter().GetResult();
 
-            // ITickSystem 是 TestSystem 实现的非框架接口，应能查到同一个实例
             Assert.AreSame(system, _ctx.GetSystem<ITickSystem>());
-            // 按基类查询同样命中
             Assert.AreSame(system, _ctx.GetSystem<TestSystemBase>());
         }
 
@@ -129,48 +162,6 @@ namespace JulyArch.Tests
             _ctx.RegisterSystem(b);
 
             Assert.AreSame(a, _ctx.GetSystem<TestSystem>(), "重复注册应保留先注册者");
-        }
-
-        #endregion
-
-        #region 动态注册（已初始化后）
-
-        [Test]
-        public void RegisterSystem_AfterInitialize_InitializesImmediately()
-        {
-            _ctx.InitializeAsync().GetAwaiter().GetResult();
-
-            var system = new TestSystem();
-            _ctx.RegisterSystem(system);
-
-            Assert.IsTrue(system.InitializeCalled, "初始化后注册应立即 Initialize");
-            Assert.IsTrue(system.StartCalled, "初始化后注册应立即 Start");
-        }
-
-        [Test]
-        public void UnregisterSystem_AfterInitialize_ShutsDown()
-        {
-            var system = new TestSystem();
-            _ctx.RegisterSystem(system);
-            _ctx.InitializeAsync().GetAwaiter().GetResult();
-
-            _ctx.UnregisterSystem(system);
-
-            Assert.IsTrue(system.ShutdownCalled, "已初始化后注销应触发 Shutdown");
-            LogAssert.Expect(LogType.Error, new Regex("GetSystem.*未注册"));
-            Assert.IsNull(_ctx.GetSystem<TestSystem>());
-        }
-
-        [Test]
-        public void RegisterStore_AfterInitialize_LoadsImmediately()
-        {
-            _ctx.InitializeAsync().GetAwaiter().GetResult();
-
-            var store = new TestStore();
-            _ctx.RegisterStore(store);
-
-            Assert.IsTrue(store.LoadCalled, "初始化后注册 Store 应立即 Load");
-            Assert.IsTrue(store.ReadyCalled, "初始化后注册 Store 应立即 Ready");
         }
 
         #endregion
@@ -195,10 +186,19 @@ namespace JulyArch.Tests
         }
 
         [Test]
+        public void Shutdown_WithoutInitialize_DoesNotThrow()
+        {
+            var system = new TestSystem();
+            _ctx.RegisterSystem(system);
+
+            Assert.DoesNotThrow(() => _ctx.Shutdown());
+            Assert.IsFalse(system.ShutdownCalled,
+                "未初始化的 System 不应触发 OnShutdown");
+        }
+
+        [Test]
         public void Shutdown_SystemBaseAutoUnsubscribesEvents()
         {
-            // 验证 SystemBase.Shutdown 兜底 UnsubscribeAll(this)：
-            // System 订阅事件后不手写 Unsubscribe，注销后不应再收到事件。
             var system = new TestSubscribingSystem();
             _ctx.RegisterSystem(system);
             _ctx.InitializeAsync().GetAwaiter().GetResult();
@@ -206,7 +206,7 @@ namespace JulyArch.Tests
             _ctx.Event.Publish(new TestEvent());
             Assert.AreEqual(1, system.ReceivedCount, "初始化后事件应路由到 System");
 
-            _ctx.UnregisterSystem(system); // 触发 SystemBase.Shutdown 兜底注销
+            _ctx.UnregisterSystem(system);
 
             _ctx.Event.Publish(new TestEvent());
             Assert.AreEqual(1, system.ReceivedCount,
@@ -214,9 +214,22 @@ namespace JulyArch.Tests
         }
 
         [Test]
+        public void UnregisterSystem_BeforeInit_DoesNotShutdown()
+        {
+            var system = new TestSystem();
+            _ctx.RegisterSystem(system);
+
+            _ctx.UnregisterSystem(system);
+
+            Assert.IsFalse(system.ShutdownCalled,
+                "未初始化的 System 注销时不应触发 OnShutdown");
+            LogAssert.Expect(LogType.Error, new Regex("GetSystem.*未注册"));
+            Assert.IsNull(_ctx.GetSystem<TestSystem>());
+        }
+
+        [Test]
         public void RunProcedure_AutoUnsubscribesAfterExecute()
         {
-            // 验证 ArchContext.RunProcedure 执行结束（含正常完成）后兜底注销 Procedure 订阅。
             _ctx.InitializeAsync().GetAwaiter().GetResult();
 
             var proc = new SubscribingProcedure();
@@ -226,7 +239,6 @@ namespace JulyArch.Tests
             _ctx.RunProcedure(proc).GetAwaiter().GetResult();
             Assert.AreEqual(1, proc.ReceivedCount, "Procedure 执行期间应收到事件");
 
-            // Procedure 执行完毕后应已被兜底注销，再发布不再触发其 handler
             _ctx.Event.Publish(new TestEvent());
             Assert.AreEqual(1, proc.ReceivedCount, "Procedure 结束后不应再收到事件");
             Assert.AreEqual(2, received, "外部订阅者不受影响");
@@ -241,7 +253,6 @@ namespace JulyArch.Tests
             Assert.Throws<InvalidOperationException>(() =>
                 _ctx.RunProcedure(proc).GetAwaiter().GetResult());
 
-            // 异常路径也应兜底注销，否则订阅泄漏
             _ctx.Event.Publish(new TestEvent());
             Assert.AreEqual(0, proc.ReceivedCount, "异常退出后 Procedure 不应再收到事件");
         }
@@ -276,11 +287,9 @@ namespace JulyArch.Tests
         [Test]
         public void RegisterView_UnregisterView_IdentitySafe()
         {
-            // view1: active GO → Awake 自动注册
             var go1 = new GameObject("v1");
             var view1 = go1.AddComponent<TestSingletonView>();
 
-            // view2: inactive GO → Awake 不触发，避免 Duplicate ISingletonView 冲突
             var go2 = new GameObject("v2");
             go2.SetActive(false);
             var view2 = go2.AddComponent<TestSingletonView>();
@@ -288,7 +297,6 @@ namespace JulyArch.Tests
             {
                 Assert.AreSame(view1, _ctx.GetView<TestSingletonView>());
 
-                // 身份校验：用 view2 尝试注销，view1 应仍在（仅当登记的是自己才移除）
                 _ctx.UnregisterView(view2);
                 Assert.AreSame(view1, _ctx.GetView<TestSingletonView>(),
                     "仅当登记的确实是自己时才移除");
@@ -306,18 +314,16 @@ namespace JulyArch.Tests
 
         #endregion
 
-        #region 异步 Store
+        #region Store 异步初始化
 
         [Test]
-        public void InitializeAsync_AsyncStore_LoadedViaLoadAsync()
+        public void InitializeAsync_AsyncStore_InitializedViaOnInitializeAsync()
         {
             var store = new TestAsyncStore();
             _ctx.RegisterStore(store);
             _ctx.InitializeAsync().GetAwaiter().GetResult();
 
-            Assert.IsTrue(store.LoadAsyncCalled, "IAsyncLoadable Store 应通过 LoadAsync 加载");
-            Assert.IsFalse(store.SyncLoadCalled, "异步 Store 不应走同步 Load");
-            Assert.IsTrue(store.ReadyCalled);
+            Assert.IsTrue(store.InitCalled, "Store 应通过 OnInitializeAsync 初始化");
         }
 
         #endregion
@@ -360,23 +366,18 @@ namespace JulyArch.Tests
 
         private sealed class TestSystem : TestSystemBase, IUpdatableSystem, ITickSystem
         {
-            public bool InitializeCalled, StartCalled, ShutdownCalled;
-            public int InitTick = -1, StartTick = -1, ShutdownTick = -1;
+            public bool InitCalled, ShutdownCalled;
+            public int InitTick = -1, ShutdownTick = -1;
             public int UpdateCount;
             public float TotalDelta;
 
             public void Tick() { }
 
-            protected override void OnInitialize()
+            protected override UniTask OnInitializeAsync()
             {
-                InitializeCalled = true;
+                InitCalled = true;
                 InitTick = s_clock++;
-            }
-
-            protected override void OnStart()
-            {
-                StartCalled = true;
-                StartTick = s_clock++;
+                return UniTask.CompletedTask;
             }
 
             protected override void OnShutdown()
@@ -392,12 +393,28 @@ namespace JulyArch.Tests
             }
         }
 
+        private sealed class TestSystem2 : SystemBase
+        {
+            public bool InitCalled;
+            public int InitTick = -1;
+
+            protected override UniTask OnInitializeAsync()
+            {
+                InitCalled = true;
+                InitTick = s_clock++;
+                return UniTask.CompletedTask;
+            }
+        }
+
         private sealed class TestSubscribingSystem : SystemBase
         {
             public int ReceivedCount;
 
-            protected override void OnInitialize()
-                => Subscribe<TestEvent>(OnEvent);
+            protected override UniTask OnInitializeAsync()
+            {
+                Subscribe<TestEvent>(OnEvent);
+                return UniTask.CompletedTask;
+            }
 
             private void OnEvent(TestEvent e) => ReceivedCount++;
         }
@@ -406,20 +423,15 @@ namespace JulyArch.Tests
 
         private class TestStore : StoreBase<TestStoreData>
         {
-            public bool LoadCalled, ReadyCalled, ShutdownCalled;
-            public int LoadTick = -1, ReadyTick = -1, ShutdownTick = -1;
+            public bool InitCalled, ShutdownCalled;
+            public int InitTick = -1, ShutdownTick = -1;
 
-            protected override TestStoreData OnLoad()
+            protected override UniTask OnInitializeAsync()
             {
-                LoadCalled = true;
-                LoadTick = s_clock++;
-                return new TestStoreData();
-            }
-
-            protected override void OnReady()
-            {
-                ReadyCalled = true;
-                ReadyTick = s_clock++;
+                Data = new TestStoreData();
+                InitCalled = true;
+                InitTick = s_clock++;
+                return UniTask.CompletedTask;
             }
 
             protected override void OnShutdown()
@@ -429,25 +441,16 @@ namespace JulyArch.Tests
             }
         }
 
-        private sealed class TestAsyncStore : StoreBase<TestStoreData>, IAsyncLoadable
+        private sealed class TestAsyncStore : StoreBase<TestStoreData>
         {
-            public bool LoadAsyncCalled, SyncLoadCalled, ReadyCalled;
+            public bool InitCalled;
 
-            public UniTask OnLoadAsync()
+            protected override UniTask OnInitializeAsync()
             {
-                LoadAsyncCalled = true;
+                InitCalled = true;
                 Data = new TestStoreData();
                 return UniTask.CompletedTask;
             }
-
-            // 同步路径不应被触发；若被调用则标记，用于断言异步 Store 没误走同步 Load。
-            protected override TestStoreData OnLoad()
-            {
-                SyncLoadCalled = true;
-                return new TestStoreData();
-            }
-
-            protected override void OnReady() => ReadyCalled = true;
         }
 
         private sealed class NoopProcedure : ProcedureBase
@@ -483,10 +486,6 @@ namespace JulyArch.Tests
             private void OnEvent(TestEvent e) => ReceivedCount++;
         }
 
-        /// <summary>
-        /// 测试用可定位 View。GameView 是 MonoBehaviour，须通过 AddComponent 创建。
-        /// 这里只验证注册/注销/身份校验逻辑，不触发任何 Unity 生命周期回调。
-        /// </summary>
         private sealed class TestSingletonView : GameView, ISingletonView { }
 
         #endregion

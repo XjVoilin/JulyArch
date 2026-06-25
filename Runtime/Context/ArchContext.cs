@@ -47,14 +47,6 @@ namespace JulyArch
 
             store.SetContext(this);
             _storeList.Add(store);
-
-            if (_initialized)
-            {
-                if (store.IsAsyncLoadable)
-                    Debug.LogWarning($"[ArchContext] Store {type.Name} 异步 Store 在初始化后注册，仅同步 Load");
-                store.Load();
-                store.Ready();
-            }
         }
 
         public void UnregisterStore(StoreBase store)
@@ -63,11 +55,8 @@ namespace JulyArch
             var type = store.GetType();
             if (!_stores.TryGetValue(type, out var existing) || existing != store) return;
 
-            if (_initialized)
-            {
-                try { store.Shutdown(); }
-                catch (Exception ex) { Debug.LogException(ex); }
-            }
+            try { store.Shutdown(); }
+            catch (Exception ex) { Debug.LogException(ex); }
 
             _stores.Remove(type);
             _storeList.Remove(store);
@@ -102,12 +91,6 @@ namespace JulyArch
             _systems.Add(system);
 
             if (system is IUpdatableSystem updatable) _updateSystems.Add(updatable);
-
-            if (_initialized)
-            {
-                system.Initialize();
-                system.Start();
-            }
         }
 
         public void UnregisterSystem(SystemBase system)
@@ -116,11 +99,8 @@ namespace JulyArch
             var concreteType = system.GetType();
             if (!_systemLookup.TryGetValue(concreteType, out var existing) || existing != system) return;
 
-            if (_initialized)
-            {
-                try { system.Shutdown(); }
-                catch (Exception ex) { Debug.LogException(ex); }
-            }
+            try { system.Shutdown(); }
+            catch (Exception ex) { Debug.LogException(ex); }
 
             var keysToRemove = new List<Type>();
             foreach (var kvp in _systemLookup)
@@ -172,35 +152,20 @@ namespace JulyArch
 
         public async UniTask InitializeAsync(CancellationToken ct = default)
         {
-            if (_initialized)
-            {
-                Debug.LogWarning("[ArchContext] 已经初始化，跳过");
-                return;
-            }
-
-            var asyncTasks = new List<UniTask>();
-
+            var storeTasks = new List<UniTask>();
             foreach (var store in _storeList)
             {
                 ct.ThrowIfCancellationRequested();
-
-                if (store.IsAsyncLoadable)
-                    asyncTasks.Add(store.LoadAsync());
-                else
-                    store.Load();
+                storeTasks.Add(store.InitializeAsync());
             }
-
-            if (asyncTasks.Count > 0)
-                await UniTask.WhenAll(asyncTasks);
-
-            foreach (var store in _storeList)
-                store.Ready();
+            if (storeTasks.Count > 0)
+                await UniTask.WhenAll(storeTasks);
 
             foreach (var system in _systems)
-                system.Initialize();
-
-            foreach (var system in _systems)
-                system.Start();
+            {
+                ct.ThrowIfCancellationRequested();
+                await system.InitializeAsync();
+            }
 
             _initialized = true;
         }
@@ -274,8 +239,6 @@ namespace JulyArch
         public void Shutdown()
         {
             if (Current == this) Current = null;
-
-            if (!_initialized) return;
 
             for (var i = _systems.Count - 1; i >= 0; i--)
             {

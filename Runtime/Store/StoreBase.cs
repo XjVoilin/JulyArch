@@ -10,16 +10,28 @@ namespace JulyArch
     public abstract class StoreBase
     {
         private ArchContext _architecture;
+        private bool _initialized;
+
+        internal bool IsInitialized => _initialized;
 
         internal void SetContext(ArchContext ctx) => _architecture = ctx;
 
-        internal abstract void Load();
-        internal abstract bool IsAsyncLoadable { get; }
-        internal abstract UniTask LoadAsync();
-        internal void Ready() => OnReady();
-        internal abstract void Shutdown();
+        internal async UniTask InitializeAsync()
+        {
+            if (_initialized) return;
+            await OnInitializeAsync();
+            _initialized = true;
+        }
 
-        protected virtual void OnReady() { }
+        internal void Shutdown()
+        {
+            if (!_initialized) return;
+            OnShutdown();
+            _initialized = false;
+        }
+
+        protected virtual UniTask OnInitializeAsync() => UniTask.CompletedTask;
+        protected virtual void OnShutdown() { }
 
         /// <summary>
         /// 预留的 Store 写操作追踪钩子。
@@ -36,33 +48,13 @@ namespace JulyArch
     {
         protected TData Data { get; set; }
 
+        protected override UniTask OnInitializeAsync()
+        {
+            Data = new TData();
+            return UniTask.CompletedTask;
+        }
+
         protected void Publish<T>(T eventData)
             => ArchContext.Current.Event.Publish(eventData);
-
-        internal sealed override bool IsAsyncLoadable => this is IAsyncLoadable;
-
-        internal sealed override void Load()
-        {
-            if (this is IAsyncLoadable)
-            {
-                throw new System.InvalidOperationException(
-                    $"[{GetType().Name}] implements IAsyncLoadable, must use LoadAsync() via ArchContext");
-            }
-            Data = OnLoad();
-        }
-
-        internal sealed override UniTask LoadAsync()
-        {
-            return ((IAsyncLoadable)this).OnLoadAsync();
-        }
-
-        internal sealed override void Shutdown()
-        {
-            OnShutdown();
-        }
-
-        protected virtual TData OnLoad() => new TData();
-
-        protected virtual void OnShutdown() { }
     }
 }

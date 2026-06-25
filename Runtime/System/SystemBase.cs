@@ -7,23 +7,29 @@ namespace JulyArch
     public abstract class SystemBase : ICanGetStore, ICanEvent, ICanGetSystem, ICanGetView, ICanRunProcedure
     {
         private ArchContext _architecture;
+        private bool _initialized;
+
+        internal bool IsInitialized => _initialized;
 
         internal void SetContext(ArchContext ctx) => _architecture = ctx;
 
-        internal void Initialize() => OnInitialize();
-        internal void Start() => OnStart();
-        internal void Shutdown()
+        internal async UniTask InitializeAsync()
         {
-            // 兜底注销本 System 所有事件订阅，避免子类忘记 Unsubscribe 导致泄漏。
-            // 与 GameView.OnDisable 的 UnsubscribeAll 行为对齐。
-            try { _architecture?.Event?.UnsubscribeAll(this); }
-            catch { /* Shutdown 期间不应因清理失败而中断后续逻辑 */ }
-
-            OnShutdown();
+            if (_initialized) return;
+            await OnInitializeAsync();
+            _initialized = true;
         }
 
-        protected virtual void OnInitialize() { }
-        protected virtual void OnStart() { }
+        internal void Shutdown()
+        {
+            if (!_initialized) return;
+            try { _architecture?.Event?.UnsubscribeAll(this); }
+            catch { }
+            OnShutdown();
+            _initialized = false;
+        }
+
+        protected virtual UniTask OnInitializeAsync() => UniTask.CompletedTask;
         protected virtual void OnShutdown() { }
 
         protected T GetStore<T>() where T : StoreBase
