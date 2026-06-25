@@ -12,7 +12,15 @@ namespace JulyArch
 
         internal void Initialize() => OnInitialize();
         internal void Start() => OnStart();
-        internal void Shutdown() => OnShutdown();
+        internal void Shutdown()
+        {
+            // 兜底注销本 System 所有事件订阅，避免子类忘记 Unsubscribe 导致泄漏。
+            // 与 GameView.OnDisable 的 UnsubscribeAll 行为对齐。
+            try { _architecture?.Event?.UnsubscribeAll(this); }
+            catch { /* Shutdown 期间不应因清理失败而中断后续逻辑 */ }
+
+            OnShutdown();
+        }
 
         protected virtual void OnInitialize() { }
         protected virtual void OnStart() { }
@@ -32,6 +40,9 @@ namespace JulyArch
 
         protected T GetSystem<T>() where T : class
             => _architecture.GetSystem<T>();
+
+        protected T TryGetSystem<T>() where T : class
+            => _architecture.TryGetSystem<T>();
 
         protected T GetView<T>() where T : GameView
             => _architecture.GetView<T>();

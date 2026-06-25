@@ -236,6 +236,11 @@ namespace JulyArch
             return null;
         }
 
+        public T TryGetSystem<T>() where T : class
+        {
+            return _systemLookup.TryGetValue(typeof(T), out var system) ? (T)(object)system : null;
+        }
+
         public T GetView<T>() where T : GameView
         {
             if (_views.TryGetValue(typeof(T), out var view))
@@ -254,11 +259,22 @@ namespace JulyArch
                 $"[ArchContext] 初始化未完成，无法运行 Procedure: {procedure.GetType().Name}");
 
             procedure.SetContext(this);
-            await procedure.Execute(ct);
+            try
+            {
+                await procedure.Execute(ct);
+            }
+            finally
+            {
+                // Procedure 实例一次性，执行结束（含异常/取消）后兜底注销其事件订阅，避免泄漏。
+                try { Event.UnsubscribeAll(procedure); }
+                catch { }
+            }
         }
 
         public void Shutdown()
         {
+            if (Current == this) Current = null;
+
             if (!_initialized) return;
 
             for (var i = _systems.Count - 1; i >= 0; i--)
@@ -282,8 +298,6 @@ namespace JulyArch
             _initialized = false;
 
             Event.Dispose();
-
-            if (Current == this) Current = null;
         }
     }
 }
