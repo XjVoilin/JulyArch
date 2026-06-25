@@ -8,6 +8,7 @@ namespace JulyArch
     {
         private ArchContext _architecture;
         private bool _initialized;
+        private bool _postInitialized;
 
         internal bool IsInitialized => _initialized;
 
@@ -20,6 +21,14 @@ namespace JulyArch
             _initialized = true;
         }
 
+        internal void PostInitialize()
+        {
+            if (!_initialized) return;
+            if (_postInitialized) return;
+            OnPostInitialize();
+            _postInitialized = true;
+        }
+
         internal void Shutdown()
         {
             if (!_initialized) return;
@@ -27,9 +36,11 @@ namespace JulyArch
             catch { }
             OnShutdown();
             _initialized = false;
+            _postInitialized = false;
         }
 
         protected virtual UniTask OnInitializeAsync() => UniTask.CompletedTask;
+        protected virtual void OnPostInitialize() { }
         protected virtual void OnShutdown() { }
 
         protected T GetStore<T>() where T : StoreBase

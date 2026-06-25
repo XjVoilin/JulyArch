@@ -167,6 +167,9 @@ namespace JulyArch
                 await system.InitializeAsync();
             }
 
+            foreach (var system in _systems)
+                system.PostInitialize();
+
             _initialized = true;
         }
 

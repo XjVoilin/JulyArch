@@ -64,8 +64,11 @@ namespace JulyArch.Tests
 
             Assert.IsTrue(store.InitCalled, "Store.OnInitializeAsync 应在初始化时被调用");
             Assert.IsTrue(system.InitCalled, "System.OnInitializeAsync 应在初始化时被调用");
+            Assert.IsTrue(system.PostInitCalled, "System.OnPostInitialize 应在初始化时被调用");
             Assert.Less(store.InitTick, system.InitTick,
                 "Store 应在 System 之前初始化");
+            Assert.Less(system.InitTick, system.PostInitTick,
+                "PostInitialize 必须晚于 InitializeAsync");
             Assert.IsTrue(_ctx.Initialized);
         }
 
@@ -99,6 +102,20 @@ namespace JulyArch.Tests
 
             Assert.AreEqual(sys1Tick, sys1.InitTick, "已初始化的 System 不应重复初始化");
             Assert.IsTrue(sys2.InitCalled, "新注册的 System 应在第二次 InitializeAsync 时初始化");
+        }
+
+        [Test]
+        public void InitializeAsync_PostInitialize_AllSystemsReady()
+        {
+            var sysA = new PostInitCheckSystem();
+            var sysB = new TestSystem();
+            _ctx.RegisterSystem(sysA);
+            _ctx.RegisterSystem(sysB);
+
+            _ctx.InitializeAsync().GetAwaiter().GetResult();
+
+            Assert.IsTrue(sysA.FoundSysBInPostInit,
+                "OnPostInitialize 时应能访问后注册的 System");
         }
 
         [Test]
@@ -366,8 +383,8 @@ namespace JulyArch.Tests
 
         private sealed class TestSystem : TestSystemBase, IUpdatableSystem, ITickSystem
         {
-            public bool InitCalled, ShutdownCalled;
-            public int InitTick = -1, ShutdownTick = -1;
+            public bool InitCalled, PostInitCalled, ShutdownCalled;
+            public int InitTick = -1, PostInitTick = -1, ShutdownTick = -1;
             public int UpdateCount;
             public float TotalDelta;
 
@@ -380,6 +397,12 @@ namespace JulyArch.Tests
                 return UniTask.CompletedTask;
             }
 
+            protected override void OnPostInitialize()
+            {
+                PostInitCalled = true;
+                PostInitTick = s_clock++;
+            }
+
             protected override void OnShutdown()
             {
                 ShutdownCalled = true;
@@ -390,6 +413,16 @@ namespace JulyArch.Tests
             {
                 UpdateCount++;
                 TotalDelta += deltaTime;
+            }
+        }
+
+        private sealed class PostInitCheckSystem : SystemBase
+        {
+            public bool FoundSysBInPostInit;
+
+            protected override void OnPostInitialize()
+            {
+                FoundSysBInPostInit = TryGetSystem<TestSystem>() != null;
             }
         }
 
