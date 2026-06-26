@@ -51,18 +51,34 @@ Base 类是能力接口的便利组合 + 生命周期管理。框架生命周期
 |---------|------|------|
 | `SystemBase` | GetStore + Event + GetSystem + RunProcedure + GetView | 帧驱动（实现 `IUpdatableSystem` 时）、业务命令 |
 | `ProcedureBase` | GetStore + Event + GetSystem + RunProcedure + GetView | 异步长流程，子类 override `OnExecuteAsync` |
-| `GameView` | GetStore + Event + GetSystem + GetView | MonoBehaviour 视图基类 |
+| `ArchBehaviour` | GetStore + Event + GetSystem + GetView | 框架 MonoBehaviour 基类（仅能力，不占生命周期） |
+| `GameView` | 继承 ArchBehaviour + 生命周期钩子 | 场景对象 / UI 子组件（支持 ISingletonView） |
 | `StoreBase<TData>` | Event（内部 Publish） | 数据持有，不访问其他 Store |
 
 ### 事件订阅清理约定
 
-`IEventBus` 支持 owner 追踪，框架在两处兜底 `UnsubscribeAll`，业务侧无需手动逐个注销：
+`IEventBus` 支持 owner 追踪，框架在多处兜底 `UnsubscribeAll`，业务侧无需手动逐个注销：
 
-- **`GameView`**：`OnDisable` 中自动 `UnsubscribeAll(this)`
+- **`GameView`**：`OnDisable` 中自动 `UnsubscribeAll(this)` + `OnViewDisable()`
+- **`UIView`**（JulyGame）：`OnDisable` 中自动 `UnsubscribeAll(this)`
 - **`SystemBase`**：`Shutdown` 中自动 `UnsubscribeAll(this)`（在 `OnShutdown` 之前）
 - **`ProcedureBase`**：`ArchContext.RunProcedure` 执行结束（含异常/取消）后自动 `UnsubscribeAll(procedure)`
 
 System/Procedure 若在运行期订阅了事件，正常情况下不需要在 `OnShutdown` 里手写 `Unsubscribe`——但显式注销仍然合法（去重，不会报错）。
+
+## View 继承体系
+
+```
+MonoBehaviour
+  └─ ArchBehaviour          ← 框架 MB 基类，仅提供 Arch 能力（不占 Unity 生命周期）
+       ├─ GameView           ← 占 Awake/OnDestroy/OnEnable/OnDisable + 钩子 + ISingletonView
+       └─ UIView (JulyGame)  ← 仅占 OnDisable(UnsubscribeAll) + UISystem 生命周期
+```
+
+- `ArchBehaviour` 不占用任何 Unity 生命周期方法，仅提供 protected 能力方法
+- `GameView` 和 `UIView` 是平级兄弟，各自管理生命周期
+- `GameView` 子类使用 `OnViewAwake` / `OnViewDestroy` / `OnViewEnable` / `OnViewDisable` 钩子
+- `UIView` 子类使用 `OnBeforeOpen` / `OnOpen` / `OnClose` / `OnAfterClose` 钩子
 
 ## GameView 生命周期钩子
 
@@ -70,14 +86,14 @@ System/Procedure 若在运行期订阅了事件，正常情况下不需要在 `O
 
 | Unity 方法 | 子类钩子 | 框架行为 |
 |---|---|---|
-| `Awake` | `OnViewAwake()` | 实现了 `ISingletonView` 则注册到 `ArchContext` → 调 `OnViewAwake` |
-| `OnDestroy` | `OnViewDestroy()` | 调 `OnViewDestroy` → 实现了 `ISingletonView` 则注销 |
+| `Awake` | `OnViewAwake()` | ISingletonView 注册 → 调 `OnViewAwake` |
+| `OnDestroy` | `OnViewDestroy()` | 调 `OnViewDestroy` → ISingletonView 注销 |
 | `OnEnable` | `OnViewEnable()` | 调 `OnViewEnable` |
 | `OnDisable` | `OnViewDisable()` | `UnsubscribeAll` → 调 `OnViewDisable` |
 
 ### ISingletonView — View 可定位性
 
-空标记接口（无任何方法）。实现它的 `GameView` 在 `Awake` 时自动注册到 `ArchContext`，可被 `GetView<T>()` 检索（场景内按类型唯一）。多实例对象（棋子、敌人、列表项）**不应**实现此接口——开发期出现第二个同类型实例会抛异常快速失败，发布期保留先注册者并忽略后来者。
+空标记接口（无任何方法）。仅 `GameView` 子类可标记。实现它的 `GameView` 在 `Awake` 时自动注册到 `ArchContext`，可被 `GetView<T>()` 检索（场景内按类型唯一）。多实例对象（棋子、敌人、列表项）**不应**实现此接口——开发期出现第二个同类型实例会抛异常快速失败，发布期保留先注册者并忽略后来者。
 
 ## Store
 
