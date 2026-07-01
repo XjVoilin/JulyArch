@@ -114,7 +114,7 @@ public class ScoreStore : StoreBase<ScoreData>
 
 `GetStore<ScoreStore>()` 直接返回具体类。`ArchContext.RegisterStore` 按 `Type` 注册。
 
-**异步加载**：Store 实现 `IAsyncLoadable` 标记接口即声明需要异步 `OnLoadAsync()`。`ArchContext.InitializeAsync` 会把异步 Store 收集起来 `WhenAll` 并行加载，同步 Store 走 `Load()`，全部就绪后统一 `Ready()`。异步 Store 误用同步 `Load()` 会抛 `InvalidOperationException`。
+**初始化**：所有 Store 均通过 `OnInitializeAsync()` 虚方法初始化。`ArchContext.InitializeAsync` 收集所有 Store 的 `InitializeAsync` 调用并 `WhenAll` 并行执行，默认实现创建 `Data = new TData()`。子类可 override 以执行异步加载（如从本地读档）。
 
 ## 数据流
 

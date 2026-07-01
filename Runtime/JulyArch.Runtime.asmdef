@@ -3,7 +3,8 @@
     "rootNamespace": "JulyArch",
     "references": [
         "UniTask",
-        "JulyEvents.Runtime"
+        "JulyEvents.Runtime",
+        "JulyCommon.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

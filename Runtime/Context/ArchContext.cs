@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using JulyCommon;
 using JulyEvents;
-using UnityEngine;
 
 namespace JulyArch
 {
@@ -40,7 +40,7 @@ namespace JulyArch
             var type = store.GetType();
             if (!_stores.TryAdd(type, store))
             {
-                Debug.LogWarning(
+                JLogger.LogWarning(
                     $"[ArchContext] Store {type.Name} 已注册，跳过");
                 return;
             }
@@ -56,7 +56,7 @@ namespace JulyArch
             if (!_stores.TryGetValue(type, out var existing) || existing != store) return;
 
             try { store.Shutdown(); }
-            catch (Exception ex) { Debug.LogException(ex); }
+            catch (Exception ex) { JLogger.LogException(ex); }
 
             _stores.Remove(type);
             _storeList.Remove(store);
@@ -69,7 +69,7 @@ namespace JulyArch
             var concreteType = system.GetType();
             if (!_systemLookup.TryAdd(concreteType, system))
             {
-                Debug.LogWarning(
+                JLogger.LogWarning(
                     $"[ArchContext] System {concreteType.Name} 已注册，跳过");
                 return;
             }
@@ -100,7 +100,7 @@ namespace JulyArch
             if (!_systemLookup.TryGetValue(concreteType, out var existing) || existing != system) return;
 
             try { system.Shutdown(); }
-            catch (Exception ex) { Debug.LogException(ex); }
+            catch (Exception ex) { JLogger.LogException(ex); }
 
             var keysToRemove = new List<Type>();
             foreach (var kvp in _systemLookup)
@@ -123,7 +123,7 @@ namespace JulyArch
             var type = view.GetType();
             if (_views.TryGetValue(type, out var existing) && existing != view)
             {
-                Debug.LogError(
+                JLogger.LogError(
                     $"[ArchContext] {type.Name} 实现了 ISingletonView 但出现多个实例，" +
                     "多实例对象不应实现 ISingletonView。");
 #if UNITY_EDITOR || JULYGF_DEBUG
@@ -180,7 +180,7 @@ namespace JulyArch
             for (var i = 0; i < _updateSystems.Count; i++)
             {
                 try { _updateSystems[i].OnUpdate(deltaTime); }
-                catch (Exception ex) { Debug.LogException(ex); }
+                catch (Exception ex) { JLogger.LogException(ex); }
             }
         }
 
@@ -191,7 +191,7 @@ namespace JulyArch
             if (_stores.TryGetValue(typeof(T), out var store))
                 return (T)store;
 
-            Debug.LogError($"[ArchContext] GetStore<{typeof(T).Name}> 未注册");
+            JLogger.LogError($"[ArchContext] GetStore<{typeof(T).Name}> 未注册");
             return null;
         }
 
@@ -200,7 +200,7 @@ namespace JulyArch
             if (_systemLookup.TryGetValue(typeof(T), out var system))
                 return (T)(object)system;
 
-            Debug.LogError($"[ArchContext] GetSystem<{typeof(T).Name}> 未注册");
+            JLogger.LogError($"[ArchContext] GetSystem<{typeof(T).Name}> 未注册");
             return null;
         }
 
@@ -214,7 +214,7 @@ namespace JulyArch
             if (_views.TryGetValue(typeof(T), out var view))
                 return (T)view;
 
-            Debug.LogError($"[ArchContext] GetView<{typeof(T).Name}> 未注册（View 需实现 ISingletonView 且其 GameObject 在场景加载时处于 active 以触发 Awake 自注册）");
+            JLogger.LogError($"[ArchContext] GetView<{typeof(T).Name}> 未注册（View 需实现 ISingletonView 且其 GameObject 在场景加载时处于 active 以触发 Awake 自注册）");
             return null;
         }
 
@@ -246,13 +246,13 @@ namespace JulyArch
             for (var i = _systems.Count - 1; i >= 0; i--)
             {
                 try { _systems[i].Shutdown(); }
-                catch (Exception ex) { Debug.LogException(ex); }
+                catch (Exception ex) { JLogger.LogException(ex); }
             }
 
             for (var i = _storeList.Count - 1; i >= 0; i--)
             {
                 try { _storeList[i].Shutdown(); }
-                catch (Exception ex) { Debug.LogException(ex); }
+                catch (Exception ex) { JLogger.LogException(ex); }
             }
 
             _stores.Clear();
