@@ -1,11 +1,12 @@
 {
   "name": "com.july.arch",
-  "version": "1.0.33",
+  "version": "1.0.34",
   "displayName": "JulyArch",
   "description": "游戏上层种子框架",
   "unity": "2021.3",
   "dependencies": {
-    "com.july.events": "1.0.0"
+    "com.july.events": "1.0.0",
+    "com.july.common": "1.0.0"
   },
   "keywords": [
     "framework",
